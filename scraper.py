@@ -217,6 +217,7 @@ def build_page(deals, cfg):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--config", default=str(ROOT / "config.json"))
+    ap.add_argument("--debug", action="store_true", help="(zostawione dla zgodności, nic nie robi)")
     args = ap.parse_args()
     cfg = json.loads(Path(args.config).read_text(encoding="utf-8"))
 
