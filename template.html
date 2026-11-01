@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Shops Promo</title>
+<meta name="theme-color" content="#14110f">
+<style>
+  :root {
+    --bg: #f6f3ee; --card: #ffffff; --ink: #14110f; --muted: #7a726a; --line: #e6e0d7;
+    --hot: #e2402d; --hot-soft: #fde7e3; --ok: #1f7a4d; --ok-soft: #e1f2e8; --warn: #9a6400; --warn-soft: #fbefd6;
+    --r: 14px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#14110f; --card:#1f1b18; --ink:#f3eee8; --muted:#a59c92; --line:#332d28;
+            --hot-soft:#3a1d18; --ok-soft:#173226; --warn-soft:#3a2c10; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; font: 15px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--ink); }
+  header { position: sticky; top: 0; z-index: 5; background: color-mix(in srgb, var(--bg) 92%, transparent);
+           backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); padding: 12px 14px 10px; }
+  .top { display:flex; align-items:baseline; justify-content:space-between; gap:10px; }
+  h1 { margin:0; font-size: 22px; letter-spacing:-.02em; }
+  h1 span { color: var(--hot); }
+  .meta { color: var(--muted); font-size: 12px; text-align:right; }
+  .row { display:flex; gap:8px; margin-top:10px; }
+  input[type=search], select, input[type=number] {
+    font: inherit; color: inherit; background: var(--card); border:1px solid var(--line); border-radius: 10px; padding: 9px 11px; min-width:0;
+  }
+  input[type=search] { flex: 1; }
+  select { flex: 0 0 auto; }
+  .chips { display:flex; gap:6px; overflow-x:auto; margin-top:10px; padding-bottom:2px; scrollbar-width:none; }
+  .chips::-webkit-scrollbar { display:none; }
+  .chip { flex:0 0 auto; border:1px solid var(--line); background: var(--card); color: inherit; border-radius: 999px; padding: 6px 12px; font: inherit; font-size: 13px; cursor:pointer; white-space:nowrap; }
+  .chip[aria-pressed=true] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+  details { margin-top: 8px; }
+  summary { cursor:pointer; color: var(--muted); font-size: 13px; }
+  .filters { display:grid; gap:10px; padding:10px 0 2px; }
+  .filters label { display:flex; align-items:center; justify-content:space-between; gap:10px; font-size:14px; }
+  .filters input[type=range] { flex:1; accent-color: var(--hot); }
+  .filters input[type=number] { width: 100px; }
+  main { padding: 14px; max-width: 1200px; margin: 0 auto; }
+  .count { color: var(--muted); font-size: 13px; margin: 0 2px 10px; }
+  .grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
+  .card { background: var(--card); border-radius: var(--r); overflow: hidden; border: 1px solid var(--line); display:flex; flex-direction:column; position:relative; }
+  .card a.img { display:block; aspect-ratio: 3/4; background: var(--line); position:relative; }
+  .card img { width:100%; height:100%; object-fit:cover; display:block; }
+  .off { position:absolute; left:8px; top:8px; background: var(--hot); color:#fff; font-weight:800; font-size:15px; padding:3px 8px; border-radius: 8px; letter-spacing:-.02em; }
+  .fav { position:absolute; right:6px; top:6px; width:34px; height:34px; border-radius:50%; border:0; background: rgba(255,255,255,.9); font-size:17px; cursor:pointer; line-height:34px; color:#14110f; }
+  .fav[aria-pressed=true] { color: var(--hot); }
+  .body { padding: 9px 10px 11px; display:flex; flex-direction:column; gap:5px; flex:1; }
+  .name { font-size: 13px; line-height:1.3; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; color: inherit; text-decoration:none; }
+  .prices { display:flex; align-items:baseline; gap:7px; flex-wrap:wrap; }
+  .now { font-weight: 800; font-size: 18px; color: var(--hot); letter-spacing:-.02em; }
+  .was { color: var(--muted); text-decoration: line-through; font-size: 13px; }
+  .low30 { font-size: 11px; color: var(--muted); }
+  .tags { display:flex; flex-wrap:wrap; gap:4px; margin-top:auto; padding-top:4px; }
+  .tag { font-size: 11px; font-weight:600; padding: 2px 7px; border-radius: 6px; }
+  .t-new { background: var(--ok-soft); color: var(--ok); }
+  .t-drop { background: var(--hot-soft); color: var(--hot); }
+  .t-warn { background: var(--warn-soft); color: var(--warn); }
+  .empty { text-align:center; color: var(--muted); padding: 60px 20px; }
+  .more { display:block; margin: 18px auto; padding: 11px 22px; border-radius: 999px; border:1px solid var(--line); background: var(--card); color: inherit; font: inherit; cursor:pointer; }
+</style>
+</head>
+<body>
+<header>
+  <div class="top">
+    <h1>Shops <span>Promo</span></h1>
+    <div class="meta" id="meta"></div>
+  </div>
+  <div class="row">
+    <input type="search" id="q" placeholder="Szukaj…" autocomplete="off">
+    <select id="sort" aria-label="Sortowanie">
+      <option value="discount">Największy rabat</option>
+      <option value="new">Najnowsze</option>
+      <option value="price">Najtańsze</option>
+      <option value="saving">Największa oszczędność</option>
+    </select>
+  </div>
+  <div class="chips" id="cats"></div>
+  <details>
+    <summary>Więcej filtrów</summary>
+    <div class="filters">
+      <label>Rabat min. <input type="range" id="minOff" min="10" max="80" step="5" value="10"> <b id="minOffV">10%</b></label>
+      <label>Cena maks. (zł) <input type="number" id="maxPrice" min="0" step="5" placeholder="bez limitu"></label>
+      <label>Tylko nowe (24 h) <input type="checkbox" id="onlyNew"></label>
+      <label>Ukryj podejrzane rabaty <input type="checkbox" id="hideSus"></label>
+      <label>Tylko ulubione <input type="checkbox" id="onlyFav"></label>
+    </div>
+  </details>
+</header>
+<main>
+  <div class="count" id="count"></div>
+  <div class="grid" id="grid"></div>
+  <button class="more" id="more" hidden>Pokaż więcej</button>
+</main>
+<script>
+const DATA = /*__DATA__*/null;
+const $ = id => document.getElementById(id);
+const store = {
+  get(k, d) { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+};
+let favs = new Set(store.get('favs', []));
+let cat = 'Wszystko', limit = 60;
+const zl = n => n.toFixed(2).replace('.', ',') + ' zł';
+const isNew = d => Date.now() - new Date(d.sale_since) < 864e5;
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+function ago(iso) {
+  const m = Math.round((Date.now() - new Date(iso)) / 6e4);
+  if (m < 60) return m + ' min temu';
+  if (m < 1440) return Math.round(m / 60) + ' godz. temu';
+  return new Date(iso).toLocaleString('pl-PL', { dateStyle: 'short', timeStyle: 'short' });
+}
+
+function init() {
+  if (!DATA) { $('grid').innerHTML = '<div class="empty">Brak danych — robot jeszcze nie zrobił pierwszego skanu.</div>'; return; }
+  $('meta').innerHTML = `${DATA.deals.length} okazji<br>aktualizacja ${ago(DATA.updated)}`;
+  const counts = {};
+  DATA.deals.forEach(d => counts[d.category] = (counts[d.category] || 0) + 1);
+  const cats = ['Wszystko', ...Object.keys(counts).sort((a, b) => counts[b] - counts[a])];
+  $('cats').innerHTML = cats.map(c => `<button class="chip" data-c="${esc(c)}" aria-pressed="${c === cat}">${esc(c)}${c === 'Wszystko' ? '' : ' · ' + counts[c]}</button>`).join('');
+  $('cats').onclick = e => { const b = e.target.closest('.chip'); if (!b) return; cat = b.dataset.c;
+    $('cats').querySelectorAll('.chip').forEach(x => x.setAttribute('aria-pressed', x === b)); reset(); };
+  const saved = store.get('filters', {});
+  ['sort', 'minOff', 'maxPrice'].forEach(k => { if (saved[k] != null) $(k).value = saved[k]; });
+  ['onlyNew', 'hideSus', 'onlyFav'].forEach(k => $(k).checked = !!saved[k]);
+  ['q', 'sort', 'minOff', 'maxPrice', 'onlyNew', 'hideSus', 'onlyFav'].forEach(k => $(k).addEventListener('input', reset));
+  $('more').onclick = () => { limit += 60; render(); };
+  $('grid').onclick = e => {
+    const b = e.target.closest('.fav'); if (!b) return;
+    const u = b.dataset.u; favs.has(u) ? favs.delete(u) : favs.add(u);
+    store.set('favs', [...favs]); b.setAttribute('aria-pressed', favs.has(u)); b.textContent = favs.has(u) ? '♥' : '♡';
+  };
+  render();
+}
+
+function reset() {
+  limit = 60;
+  store.set('filters', { sort: $('sort').value, minOff: $('minOff').value, maxPrice: $('maxPrice').value,
+    onlyNew: $('onlyNew').checked, hideSus: $('hideSus').checked, onlyFav: $('onlyFav').checked });
+  render();
+}
+
+function render() {
+  const q = $('q').value.trim().toLowerCase(), minOff = +$('minOff').value, maxP = parseFloat($('maxPrice').value);
+  $('minOffV').textContent = minOff + '%';
+  let list = DATA.deals.filter(d =>
+    (cat === 'Wszystko' || d.category === cat) && d.discount >= minOff &&
+    (!maxP || d.current <= maxP) && (!q || d.name.toLowerCase().includes(q)) &&
+    (!$('onlyNew').checked || isNew(d)) && (!$('hideSus').checked || !d.was_cheaper) &&
+    (!$('onlyFav').checked || favs.has(d.url)));
+  const s = $('sort').value;
+  const by = { discount: (a, b) => b.discount - a.discount, price: (a, b) => a.current - b.current,
+    saving: (a, b) => (b.regular - b.current) - (a.regular - a.current), new: (a, b) => b.sale_since.localeCompare(a.sale_since) };
+  list.sort(by[s]);
+  $('count').textContent = list.length ? `${list.length} produktów` : '';
+  $('grid').innerHTML = list.length ? list.slice(0, limit).map(card).join('')
+    : '<div class="empty" style="grid-column:1/-1">Nic nie pasuje do filtrów.</div>';
+  $('more').hidden = list.length <= limit;
+}
+
+function card(d) {
+  const tags = [];
+  if (isNew(d)) tags.push('<span class="tag t-new">NOWE</span>');
+  if (d.price_drop) tags.push('<span class="tag t-drop">↓ dalej tanieje</span>');
+  if (d.was_cheaper) tags.push(`<span class="tag t-warn" title="Robot widział już niższą cenę">było ${zl(d.min_seen)}</span>`);
+  const low = d.lowest30 ? `<div class="low30">Najniższa z 30 dni: ${zl(d.lowest30)}${d.real_discount30 != null && d.real_discount30 < d.discount ? ` (realnie −${Math.max(0, d.real_discount30)}%)` : ''}</div>` : '';
+  const f = favs.has(d.url);
+  return `<article class="card">
+    <a class="img" href="${esc(d.url)}" target="_blank" rel="noopener">
+      ${d.image ? `<img src="${esc(d.image)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : ''}
+      <span class="off">−${d.discount}%</span>
+    </a>
+    <button class="fav" data-u="${esc(d.url)}" aria-pressed="${f}" aria-label="Ulubione">${f ? '♥' : '♡'}</button>
+    <div class="body">
+      <a class="name" href="${esc(d.url)}" target="_blank" rel="noopener">${esc(d.name)}</a>
+      <div class="prices"><span class="now">${zl(d.current)}</span><span class="was">${zl(d.regular)}</span></div>
+      ${low}
+      ${tags.length ? `<div class="tags">${tags.join('')}</div>` : ''}
+    </div>
+  </article>`;
+}
+init();
+</script>
+</body>
+</html>

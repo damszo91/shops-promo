@@ -1,0 +1,11 @@
+{
+  "base_url": "https://www.sinsay.com/pl/pl/",
+  "start_urls": [],
+  "discover_keywords": ["wyprzeda", "promocj", "sale", "przecen", "outlet", "okazj", "-50", "-70"],
+  "max_listing_pages": 12,
+  "max_scrolls_per_page": 60,
+  "product_url_regex": "/pl/pl/[a-z0-9-]*-[0-9a-z]{4,6}-[0-9a-z]{2,3}/?$",
+  "min_discount_percent": 10,
+  "delay_seconds": 2.0,
+  "history_days": 60
+}
