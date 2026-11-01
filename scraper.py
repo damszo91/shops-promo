@@ -248,7 +248,7 @@ def scan_answear(f, shop, dept):
 # ---------------------------------------------------------------- H&M
 
 def scan_hm(f, shop, dept):
-    page = 1
+    page, seen = 1, set()
     while True:
         url = shop["site"] + dept["path"] + (f"?page={page}" if page > 1 else "")
         html, final = f.browser_get(url, warmup=shop["site"] + "/pl_pl/index.html")
@@ -261,7 +261,9 @@ def scan_hm(f, shop, dept):
         d = (json.loads(m.group(1)).get("props", {}).get("pageProps", {}).get("plpProps", {})
              .get("productListingSectionProps", {}).get("productListingData", {}))
         hits = d.get("hits") or []
-        for p in hits:
+        new = [p for p in hits if p.get("pdpUrl") and p["pdpUrl"] not in seen]
+        seen.update(p["pdpUrl"] for p in new)
+        for p in new:
             prices = {x.get("priceType"): num(x.get("price")) for x in (p.get("prices") or [])}
             current = prices.get("redPrice") or num(p.get("redPrice")) or prices.get("whitePrice")
             regular = prices.get("whitePrice") or num(p.get("regularPrice"))
@@ -272,9 +274,13 @@ def scan_hm(f, shop, dept):
                 "current": current, "regular": regular,
                 "lowest30": num(p.get("priorPrice")), "sizes": [],
             }
-        pages = int(d.get("totalPages") or 1)
-        log(f"    strona {page}/{pages}")
-        if not hits or page >= pages or page >= 100:
+        total = int(d.get("totalHits") or 0)
+        pages = int(d.get("totalPages") or 0)
+        log(f"    strona {page}" + (f"/{pages}" if pages else "") + f" – {len(seen)}" + (f"/{total}" if total else "") + " produktów")
+        # następna strona, dopóki przybywa nowych produktów (H&M nie zawsze podaje liczbę stron)
+        if page == 1:
+            first_size = len(hits)
+        if not new or len(hits) < first_size or (pages and page >= pages) or (total and len(seen) >= total) or page >= 100:
             return
         page += 1
 
