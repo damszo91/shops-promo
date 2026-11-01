@@ -190,6 +190,52 @@
       "site": "https://www.stradivarius.com",
       "store_id": 54009574,
       "catalog_id": 50331065
+    },
+    {
+      "name": "Esotiq",
+      "type": "esotiq",
+      "site": "https://esotiq.com/pl/pl/",
+      "api": "https://api-prod.esotiq.com/api/v1/esq-pl-pl/",
+      "departments": [
+        {
+          "label": "Wyprzedaż",
+          "id": 260
+        }
+      ]
+    },
+    {
+      "name": "Calzedonia",
+      "type": "calz",
+      "site": "https://www.calzedonia.com",
+      "departments": [
+        {
+          "label": "Kobieta",
+          "path": "/pl/kobieta/wyprzeda%C5%BC/"
+        },
+        {
+          "label": "Mężczyzna",
+          "path": "/pl/m%C4%99%C5%BCczyzna/wyprzeda%C5%BC/"
+        },
+        {
+          "label": "Dziecko",
+          "path": "/pl/dzieci/wyprzeda%C5%BC/"
+        }
+      ]
+    },
+    {
+      "name": "Intimissimi",
+      "type": "sfra",
+      "site": "https://www.intimissimi.com",
+      "departments": [
+        {
+          "label": "Kobieta",
+          "path": "/pl/kobieta/wyprzeda%C5%BC/"
+        },
+        {
+          "label": "Mężczyzna",
+          "path": "/pl/m%C4%99%C5%BCczyzna/wyprzeda%C5%BC/"
+        }
+      ]
     }
   ]
 }

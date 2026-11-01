@@ -8,6 +8,7 @@ Obsługiwane sklepy (lista i ustawienia w config.json):
 - Mohito                          – jak wyżej (grupa LPP),
 - Medicine (wearmedicine.com)     – działy „Wyprzedaż”,
 - H&M                             – działy „Wyprzedaż”,
+- Esotiq, Calzedonia, Intimissimi  – działy „Wyprzedaż”,
 - Zara, Bershka, Pull&Bear, Stradivarius – działy „Promocje” / „Special prices” / „Wyprzedaż”
   wyszukiwane automatycznie w drzewie kategorii sklepu przy każdym skanie.
 
@@ -421,7 +422,114 @@ def scan_itx(f, shop):
         log(f"    produkty: {min(k + 40, len(ids))}/{len(ids)}")
 
 
-SCANNERS = {"lpp": scan_lpp, "answear": scan_answear, "hm": scan_hm}
+# ---------------------------------------------------------------- Esotiq
+
+def scan_esotiq(f, shop, dept):
+    url = f"{shop['api']}model-colors/?category={dept['id']}&page=1&page_size=100"
+    got = 0
+    while url:
+        data, _ = f.get(url, referer=shop["site"], as_json=True)
+        items = data.get("results") or []
+        for p in items:
+            pc = p.get("price_collection") or {}
+            img = (p.get("photo") or {}).get("image")
+            yield {
+                "url": shop["site"] + (p.get("slug") or ""),
+                "name": (p.get("name") or "").strip(),
+                "image": img, "current": num(pc.get("price")),
+                "regular": num(pc.get("base_price")) or num(pc.get("reference_price")),
+                "lowest30": num(pc.get("min_30d_price")), "sizes": [],
+            }
+        got += len(items)
+        log(f"    {got}/{data.get('count')}")
+        url = data.get("next") if items and got < 5000 else None
+
+
+# ---------------------------------------------------------------- Calzedonia (nowa wersja sklepu Salesforce)
+
+def scan_calz(f, shop, dept):
+    page, got, seen = 1, 0, set()
+    while True:
+        url = shop["site"] + dept["path"] + (f"?page={page}" if page > 1 else "")
+        html, _ = f.browser_get(url, warmup=shop["site"] + "/pl/")
+        k = html.find('"c_price"')
+        start = html.rfind('"hits":[', 0, k) if k > 0 else -1
+        if start < 0:
+            log("    brak produktów na stronie")
+            return
+        hits = json_block(html, start + 7)
+        m = re.search(r'"total":(\d+)', html[start:start + 3_000_000])
+        total = int(m.group(1)) if m else 0
+        new = 0
+        for p in hits:
+            path = p.get("c_seoUrlPathname") or ""
+            if not path or path in seen:
+                continue
+            seen.add(path)
+            new += 1
+            pr = p.get("c_price") or {}
+            sales, lst = pr.get("sales") or {}, pr.get("list") or {}
+            sizes = []
+            for va in p.get("c_variationsFullData") or []:
+                if va.get("attributeId") == "size":
+                    sizes = [v.get("displayValue") for v in va.get("values") or []
+                             if v.get("displayValue") and not v.get("isSoldout")]
+            yield {
+                "url": shop["site"] + "/pl" + path,
+                "name": (p.get("productName") or "").strip(),
+                "image": p.get("c_image"),
+                "current": num(sales.get("value")), "regular": num(lst.get("value")),
+                "lowest30": num((sales.get("oldPriceOmnibus") or {}).get("value")), "sizes": sizes,
+            }
+        got += new
+        log(f"    strona {page} – {got}/{total}")
+        if not new or (total and got >= total) or page >= 100:
+            return
+        page += 1
+
+
+# ---------------------------------------------------------------- Intimissimi (klasyczna wersja sklepu Salesforce)
+
+def scan_sfra(f, shop, dept):
+    import html as htmllib
+    start, seen = 0, set()
+    while True:
+        url = shop["site"] + dept["path"] + f"?start={start}&sz=200"
+        page, _ = f.browser_get(url, warmup=shop["site"] + "/pl/")
+        tiles = page.split('class="cc-prodTile js-prodTile')[1:]
+        new = 0
+        for t in tiles:
+            m = re.search(r'class="js-prodTile-name"\s+href="([^"]+)"', t) or re.search(r'href="(/[^"]*/product/[^"]+)"', t)
+            if not m:
+                continue
+            href = htmllib.unescape(m.group(1))
+            if href in seen:
+                continue
+            seen.add(href)
+            new += 1
+            name = re.search(r'itemprop="name">\s*([^<]+?)\s*<', t)
+            img = re.search(r'<img[^>]+src="([^"]+)"', t)
+            pi = t.find('class="price"')
+            block = t[pi:pi + 4000] if pi >= 0 else ""
+            vals = {float(x) for x in re.findall(r'content="(\d+(?:\.\d+)?)"', block)}
+            vals |= {num(x) for x in re.findall(r"(\d+,\d{2})\s*zł", block)}
+            vals = sorted(v for v in vals if v)
+            if not vals:
+                continue
+            yield {
+                "url": urllib.parse.urljoin(shop["site"], href),
+                "name": htmllib.unescape(name.group(1)) if name else "",
+                "image": htmllib.unescape(img.group(1)) if img else None,
+                "current": vals[0], "regular": vals[-1], "lowest30": None, "sizes": [],
+            }
+        log(f"    {len(seen)} produktów")
+        if not new or len(tiles) < 150 or start >= 2000:
+            return
+        start += 200
+
+
+SCANNERS = {"lpp": scan_lpp, "answear": scan_answear, "hm": scan_hm,
+            "esotiq": scan_esotiq, "calz": scan_calz, "sfra": scan_sfra}
 # sklepy, w których robot sam znajduje działy promocji
 SHOP_SCANNERS = {"zara": scan_zara, "itx": scan_itx}
 
