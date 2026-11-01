@@ -43,6 +43,41 @@ class Fetch:
 
     def __init__(self, delay):
         self.delay = delay
+        self.sessions = {}
+
+    def browser_get(self, url, warmup=None, tries=2):
+        """Połączenie „jak przeglądarka Chrome” (biblioteka curl_cffi) – dla sklepów z ochroną przed botami.
+        Bez curl_cffi używa zwykłego pobierania."""
+        try:
+            from curl_cffi import requests as creq
+        except ImportError:
+            log("    (brak biblioteki curl_cffi – używam zwykłego połączenia)")
+            return self.get(url, referer=warmup)
+        host = urllib.parse.urlparse(url).netloc
+        s = self.sessions.get(host)
+        if s is None:
+            s = self.sessions[host] = creq.Session(impersonate="chrome")
+            if warmup:
+                try:
+                    s.get(warmup, timeout=45, headers={"Accept-Language": "pl-PL,pl;q=0.9"})
+                    time.sleep(2)
+                except Exception as e:
+                    log(f"    rozgrzewka nieudana ({e})")
+        last = None
+        for i in range(tries):
+            try:
+                r = s.get(url, timeout=45, headers={"Accept-Language": "pl-PL,pl;q=0.9",
+                                                    **({"Referer": warmup} if warmup else {})})
+                if r.status_code == 200:
+                    time.sleep(self.delay)
+                    return r.text, str(r.url)
+                last = f"HTTP {r.status_code}"
+                if r.status_code in (403, 404):
+                    break
+            except Exception as e:
+                last = str(e)
+            time.sleep(4 * (i + 1))
+        raise RuntimeError(last)
 
     def get(self, url, referer=None, as_json=False, tries=3):
         headers = {
@@ -216,7 +251,7 @@ def scan_hm(f, shop, dept):
     page = 1
     while True:
         url = shop["site"] + dept["path"] + (f"?page={page}" if page > 1 else "")
-        html, final = f.get(url)
+        html, final = f.browser_get(url, warmup=shop["site"] + "/pl_pl/index.html")
         if urllib.parse.urlparse(final).path != dept["path"]:
             log("    brak działu wyprzedaży (sklep przekierował na inną stronę)")
             return

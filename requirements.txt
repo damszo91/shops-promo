@@ -1,2 +1,3 @@
-# Nowa wersja robota nie wymaga dodatkow. Plik zostawiony dla zgodnosci ze starszym plikiem .github/workflows/skan.yml
+# Biblioteki dla robota. playwright zostawiony dla zgodnosci ze starszym plikiem .github/workflows/skan.yml
+curl_cffi
 playwright>=1.48
