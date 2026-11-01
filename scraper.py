@@ -5,8 +5,11 @@ Shops Promo – skaner okazji w sklepach internetowych.
 Obsługiwane sklepy (lista i ustawienia w config.json):
 - Sinsay, Reserved, House, Cropp  – grupa LPP, wspólny system sklepu: robot używa
   filtra „Tylko produkty przecenione” w każdym dziale,
+- Mohito                          – jak wyżej (grupa LPP),
 - Medicine (wearmedicine.com)     – działy „Wyprzedaż”,
-- H&M                             – działy „Wyprzedaż”.
+- H&M                             – działy „Wyprzedaż”,
+- Zara, Bershka, Pull&Bear, Stradivarius – działy „Promocje” / „Special prices” / „Wyprzedaż”
+  wyszukiwane automatycznie w drzewie kategorii sklepu przy każdym skanie.
 
 Robot:
 - zapisuje historię cen w data/history.json (wykrywanie naciąganych rabatów),
@@ -285,7 +288,142 @@ def scan_hm(f, shop, dept):
         page += 1
 
 
+# ---------------------------------------------------------------- Inditex: wspólne
+
+SECTION_NAMES = {"KOBIETA": "Kobieta", "WOMAN": "Kobieta", "MĘŻCZYZNA": "Mężczyzna", "MAN": "Mężczyzna",
+                 "DZIECI": "Dziecko", "KIDS": "Dziecko", "ZARA HOME": "Dom", "HOME": "Dom", "BEAUTY": "Uroda"}
+PROMO_KEY = re.compile(r"(?:^|[_-])(PROMO|PROMOS|PROMOCIONES|PVP_GENERAL|SPECIAL[_-]?PRICES|REBAJAS|SALE)(?:[_-]|$)", re.I)
+
+
+def section_label(path):
+    top = path.strip("/").split("/")[0].strip().upper()
+    return SECTION_NAMES.get(top, top.title() or "Inne")
+
+
+def promo_categories(cats):
+    """Kategorie promocji/wyprzedaży z drzewa kategorii sklepu (dobierane przy każdym skanie,
+    więc sezonowe wyprzedaże wejdą automatycznie)."""
+    found, seen = [], set()
+
+    def walk(items, path):
+        for c in items or []:
+            p = path + "/" + (c.get("name") or "")
+            key = str(c.get("key") or "")
+            if PROMO_KEY.search(key) and not re.search(r"TEST|GIFT", key, re.I):
+                cid = c.get("redirectCategoryId") or c.get("id")
+                if cid and cid not in seen:
+                    seen.add(cid)
+                    found.append((cid, section_label(p), p))
+            walk(c.get("subcategories"), p)
+    walk(cats, "")
+    return found
+
+
+def money(v):
+    n = num(v)
+    return round(n / 100, 2) if n is not None else None
+
+
+# ---------------------------------------------------------------- Zara
+
+def scan_zara(f, shop):
+    site = shop["site"]
+    warm = site + "/pl/"
+    text, _ = f.browser_get(site + "/pl/pl/categories?ajax=true", warmup=warm)
+    cats = promo_categories(json.loads(text).get("categories"))
+    log(f"  działy promocji: {len(cats)}")
+    for cid, label, path in cats:
+        try:
+            text, _ = f.browser_get(f"{site}/pl/pl/category/{cid}/products?ajax=true", warmup=warm)
+            data = json.loads(text)
+        except Exception as e:
+            log(f"    {path}: pomijam ({e})")
+            continue
+        n = 0
+        for g in data.get("productGroups") or []:
+            for el in g.get("elements") or []:
+                for c in el.get("commercialComponents") or []:
+                    if not c.get("oldPrice") or not c.get("seo"):
+                        continue
+                    seo = c["seo"]
+                    img = None
+                    try:
+                        x = c["detail"]["colors"][0]["xmedia"][0]
+                        img = (x.get("url") or "").replace("{width}", "500") or x["extraInfo"]["deliveryUrl"]
+                    except Exception:
+                        pass
+                    n += 1
+                    yield label, {
+                        "url": f"{site}/pl/pl/{seo.get('keyword')}-p{seo.get('seoProductId')}.html?v1={seo.get('discernProductId')}",
+                        "name": (c.get("name") or "").strip().capitalize(),
+                        "image": img, "current": money(c.get("price")), "regular": money(c.get("oldPrice")),
+                        "lowest30": None, "sizes": [],
+                    }
+        log(f"    {path}: {n}")
+
+
+# ---------------------------------------------------------------- Bershka, Pull&Bear, Stradivarius
+
+def scan_itx(f, shop):
+    site, S, C, L = shop["site"], shop["store_id"], shop["catalog_id"], shop.get("lang", -22)
+    base = f"{site}/itxrest"
+    warm = site + "/pl/"
+    q = f"languageId={L}&appId=1"
+    text, _ = f.browser_get(f"{base}/2/catalog/store/{S}/{C}/category?{q}&typeCatalog=1", warmup=warm)
+    cats = promo_categories(json.loads(text).get("categories"))
+    log(f"  działy promocji: {len(cats)}")
+    labels = {}
+    for cid, label, path in cats:
+        try:
+            text, _ = f.browser_get(f"{base}/3/catalog/store/{S}/{C}/category/{cid}/product?{q}&showProducts=false",
+                                    warmup=warm)
+            ids = json.loads(text).get("productIds") or []
+        except Exception as e:
+            log(f"    {path}: pomijam ({e})")
+            continue
+        log(f"    {path}: {len(ids)}")
+        for i in ids:
+            labels.setdefault(i, label)
+    ids = list(labels)
+    for k in range(0, len(ids), 40):
+        chunk = ids[k:k + 40]
+        try:
+            text, _ = f.browser_get(f"{base}/3/catalog/store/{S}/{C}/productsArray?productIds="
+                                    + ",".join(map(str, chunk)) + f"&{q}", warmup=warm)
+            products = json.loads(text).get("products") or []
+        except Exception as e:
+            log(f"    produkty {k}-{k + len(chunk)}: pomijam ({e})")
+            continue
+        for p in products:
+            summ = (p.get("bundleProductSummaries") or [p])[0]
+            detail = summ.get("detail") or p.get("detail") or {}
+            colors = detail.get("colors") or []
+            sizes = (colors[0].get("sizes") if colors else None) or []
+            priced = [s for s in sizes if s.get("price")]
+            if not priced:
+                continue
+            best = min(priced, key=lambda s: num(s["price"]) or 1e9)
+            img = None
+            try:
+                img = detail["xmedia"][0]["xmediaItems"][0]["medias"][0]["extraInfo"]["deliveryUrl"]
+            except Exception:
+                pass
+            purl = p.get("productUrl") or summ.get("productUrl")
+            if not purl:
+                continue
+            yield labels.get(p.get("id"), "Inne"), {
+                "url": f"{site}/pl/{purl}-c0p{p.get('id')}.html",
+                "name": (p.get("name") or "").strip(),
+                "image": img, "current": money(best.get("price")), "regular": money(best.get("oldPrice")),
+                "lowest30": None,
+                "sizes": [str(s.get("name")) for s in sizes if s.get("isBuyable") and s.get("name")],
+            }
+        log(f"    produkty: {min(k + 40, len(ids))}/{len(ids)}")
+
+
 SCANNERS = {"lpp": scan_lpp, "answear": scan_answear, "hm": scan_hm}
+# sklepy, w których robot sam znajduje działy promocji
+SHOP_SCANNERS = {"zara": scan_zara, "itx": scan_itx}
 
 
 def scan(cfg):
@@ -296,18 +434,29 @@ def scan(cfg):
             continue
         log(f"=== {shop['name']} ===")
         count = 0
-        for dept in shop["departments"]:
+
+        def add(p, label):
+            nonlocal count
+            if not p["url"] or not p["name"] or not p["current"] or not p["regular"]:
+                return
+            p.update(shop=shop["name"], category=label,
+                     current=round(p["current"], 2), regular=round(p["regular"], 2),
+                     sizes=p.get("sizes", [])[:14])
+            if p["url"] not in products:
+                products[p["url"]] = p
+                count += 1
+
+        if shop["type"] in SHOP_SCANNERS:
+            try:
+                for label, p in SHOP_SCANNERS[shop["type"]](f, shop):
+                    add(p, label)
+            except Exception as e:
+                log(f"  POMIJAM ({e})")
+        for dept in shop.get("departments", []):
             log(f"  {dept['label']}")
             try:
                 for p in SCANNERS[shop["type"]](f, shop, dept):
-                    if not p["url"] or not p["name"] or not p["current"] or not p["regular"]:
-                        continue
-                    p.update(shop=shop["name"], category=dept["label"],
-                             current=round(p["current"], 2), regular=round(p["regular"], 2),
-                             sizes=p.get("sizes", [])[:14])
-                    if p["url"] not in products:
-                        products[p["url"]] = p
-                        count += 1
+                    add(p, dept["label"])
             except Exception as e:
                 log(f"    POMIJAM ({e})")
         per_shop[shop["name"]] = count

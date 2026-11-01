@@ -4,61 +4,192 @@
   "history_days": 60,
   "shops": [
     {
-      "name": "Sinsay", "type": "lpp",
-      "site": "https://www.sinsay.com/pl/pl/", "api": "https://arch.sinsay.com/api/", "store_id": 17,
+      "name": "Sinsay",
+      "type": "lpp",
+      "site": "https://www.sinsay.com/pl/pl/",
+      "api": "https://arch.sinsay.com/api/",
+      "store_id": 17,
       "departments": [
-        {"label": "Kobieta",   "path": "kobieta",   "id": 1727},
-        {"label": "Mężczyzna", "path": "mezczyzna", "id": 23741},
-        {"label": "Dziecko",   "path": "dziecko",   "id": 35895},
-        {"label": "Dom",       "path": "dom",       "id": 26207},
-        {"label": "Buty",      "path": "shoes",     "id": 85909},
-        {"label": "Uroda",     "path": "uroda",     "id": 81893}
+        {
+          "label": "Kobieta",
+          "path": "kobieta",
+          "id": 1727
+        },
+        {
+          "label": "Mężczyzna",
+          "path": "mezczyzna",
+          "id": 23741
+        },
+        {
+          "label": "Dziecko",
+          "path": "dziecko",
+          "id": 35895
+        },
+        {
+          "label": "Dom",
+          "path": "dom",
+          "id": 26207
+        },
+        {
+          "label": "Buty",
+          "path": "shoes",
+          "id": 85909
+        },
+        {
+          "label": "Uroda",
+          "path": "uroda",
+          "id": 81893
+        }
       ]
     },
     {
-      "name": "Reserved", "type": "lpp",
-      "site": "https://www.reserved.com/pl/pl/", "api": "https://arch.reserved.com/api/", "store_id": 1,
+      "name": "Reserved",
+      "type": "lpp",
+      "site": "https://www.reserved.com/pl/pl/",
+      "api": "https://arch.reserved.com/api/",
+      "store_id": 1,
       "departments": [
-        {"label": "Kobieta",     "path": "kobieta",     "id": 239},
-        {"label": "Mężczyzna",   "path": "mezczyzna",   "id": 254},
-        {"label": "Dziewczynka", "path": "dziewczynka", "id": 4041},
-        {"label": "Chłopiec",    "path": "chlopiec",    "id": 4043}
+        {
+          "label": "Kobieta",
+          "path": "kobieta",
+          "id": 239
+        },
+        {
+          "label": "Mężczyzna",
+          "path": "mezczyzna",
+          "id": 254
+        },
+        {
+          "label": "Dziewczynka",
+          "path": "dziewczynka",
+          "id": 4041
+        },
+        {
+          "label": "Chłopiec",
+          "path": "chlopiec",
+          "id": 4043
+        }
       ]
     },
     {
-      "name": "House", "type": "lpp",
-      "site": "https://www.housebrand.com/pl/pl/", "api": "https://arch.housebrand.com/api/", "store_id": 87,
+      "name": "House",
+      "type": "lpp",
+      "site": "https://www.housebrand.com/pl/pl/",
+      "api": "https://arch.housebrand.com/api/",
+      "store_id": 87,
       "departments": [
-        {"label": "Kobieta",   "path": "kobieta",   "id": 2869},
-        {"label": "Mężczyzna", "path": "mezczyzna", "id": 2871}
+        {
+          "label": "Kobieta",
+          "path": "kobieta",
+          "id": 2869
+        },
+        {
+          "label": "Mężczyzna",
+          "path": "mezczyzna",
+          "id": 2871
+        }
       ]
     },
     {
-      "name": "Cropp", "type": "lpp",
-      "site": "https://www.cropp.com/pl/pl/", "api": "https://arch.cropp.com/api/", "store_id": 73,
+      "name": "Cropp",
+      "type": "lpp",
+      "site": "https://www.cropp.com/pl/pl/",
+      "api": "https://arch.cropp.com/api/",
+      "store_id": 73,
       "departments": [
-        {"label": "Kobieta",   "path": "kobieta",   "id": 2477},
-        {"label": "Mężczyzna", "path": "mezczyzna", "id": 2479}
+        {
+          "label": "Kobieta",
+          "path": "kobieta",
+          "id": 2477
+        },
+        {
+          "label": "Mężczyzna",
+          "path": "mezczyzna",
+          "id": 2479
+        }
       ]
     },
     {
-      "name": "Medicine", "type": "answear",
+      "name": "Mohito",
+      "type": "lpp",
+      "site": "https://www.mohito.com/pl/pl/",
+      "api": "https://arch.mohito.com/api/",
+      "store_id": 31,
+      "departments": [
+        {
+          "label": "Kobieta",
+          "path": "ubrania",
+          "id": 1725
+        }
+      ]
+    },
+    {
+      "name": "Medicine",
+      "type": "answear",
       "site": "https://wearmedicine.com",
       "departments": [
-        {"label": "Kobieta",   "path": "/sale/ona"},
-        {"label": "Mężczyzna", "path": "/sale/on"},
-        {"label": "Dom",       "path": "/sale/home"}
+        {
+          "label": "Kobieta",
+          "path": "/sale/ona"
+        },
+        {
+          "label": "Mężczyzna",
+          "path": "/sale/on"
+        },
+        {
+          "label": "Dom",
+          "path": "/sale/home"
+        }
       ]
     },
     {
-      "name": "H&M", "type": "hm",
+      "name": "H&M",
+      "type": "hm",
       "site": "https://www2.hm.com",
       "departments": [
-        {"label": "Kobieta",   "path": "/pl_pl/ona/wyprzedaz/view-all.html"},
-        {"label": "Mężczyzna", "path": "/pl_pl/on/wyprzedaz/view-all.html"},
-        {"label": "Dziecko",   "path": "/pl_pl/dziecko/wyprzedaz/zobacz-wszystko.html"},
-        {"label": "Dom",       "path": "/pl_pl/dom/wyprzedaz/zobacz-wszystko.html"}
+        {
+          "label": "Kobieta",
+          "path": "/pl_pl/ona/wyprzedaz/view-all.html"
+        },
+        {
+          "label": "Mężczyzna",
+          "path": "/pl_pl/on/wyprzedaz/view-all.html"
+        },
+        {
+          "label": "Dziecko",
+          "path": "/pl_pl/dziecko/wyprzedaz/zobacz-wszystko.html"
+        },
+        {
+          "label": "Dom",
+          "path": "/pl_pl/dom/wyprzedaz/zobacz-wszystko.html"
+        }
       ]
+    },
+    {
+      "name": "Zara",
+      "type": "zara",
+      "site": "https://www.zara.com"
+    },
+    {
+      "name": "Bershka",
+      "type": "itx",
+      "site": "https://www.bershka.com",
+      "store_id": 45109524,
+      "catalog_id": 40259532
+    },
+    {
+      "name": "Pull&Bear",
+      "type": "itx",
+      "site": "https://www.pullandbear.com",
+      "store_id": 25009524,
+      "catalog_id": 20309459
+    },
+    {
+      "name": "Stradivarius",
+      "type": "itx",
+      "site": "https://www.stradivarius.com",
+      "store_id": 54009574,
+      "catalog_id": 50331065
     }
   ]
 }
