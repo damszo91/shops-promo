@@ -33,6 +33,9 @@
   .chips::-webkit-scrollbar { display:none; }
   .chip { flex:0 0 auto; border:1px solid var(--line); background: var(--card); color: inherit; border-radius: 999px; padding: 6px 12px; font: inherit; font-size: 13px; cursor:pointer; white-space:nowrap; }
   .chip[aria-pressed=true] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+  #shops .chip { font-weight: 600; }
+  #shops .chip[aria-pressed=true] { background: var(--hot); border-color: var(--hot); color: #fff; }
+  .shop { font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
   details { margin-top: 8px; }
   summary { cursor:pointer; color: var(--muted); font-size: 13px; }
   .filters { display:grid; gap:10px; padding:10px 0 2px; }
@@ -80,6 +83,7 @@
       <option value="real">Realny rabat (vs 30 dni)</option>
     </select>
   </div>
+  <div class="chips" id="shops"></div>
   <div class="chips" id="cats"></div>
   <details>
     <summary>Więcej filtrów</summary>
@@ -106,7 +110,7 @@ const store = {
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
 };
 let favs = new Set(store.get('favs', []));
-let cat = 'Wszystko', limit = 60;
+let cat = 'Wszystko', shop = 'Wszystkie', limit = 60;
 const zl = n => n.toFixed(2).replace('.', ',') + ' zł';
 const realOff = d => d.real_discount30 != null ? d.real_discount30 : d.discount;
 const isSus = d => d.was_cheaper || (d.lowest30 && d.lowest30 < d.regular - 0.01 && realOff(d) < d.discount - 5);
@@ -122,17 +126,21 @@ function ago(iso) {
 
 function init() {
   if (!DATA) { $('grid').innerHTML = '<div class="empty">Brak danych — robot jeszcze nie zrobił pierwszego skanu.</div>'; return; }
-  $('meta').innerHTML = `${esc(DATA.shop || '')} · ${DATA.deals.length} okazji<br>aktualizacja ${ago(DATA.updated)}`;
+  const shopNames = [...new Set(DATA.deals.map(d => d.shop))];
+  $('meta').innerHTML = `${shopNames.length} sklepów · ${DATA.deals.length} okazji<br>aktualizacja ${ago(DATA.updated)}`;
+  const sc = {}; DATA.deals.forEach(d => sc[d.shop] = (sc[d.shop] || 0) + 1);
+  shop = store.get('shop', 'Wszystkie'); if (shop !== 'Wszystkie' && !sc[shop]) shop = 'Wszystkie';
+  $('shops').innerHTML = ['Wszystkie', ...Object.keys(sc).sort((a, b) => sc[b] - sc[a])].map(c =>
+    `<button class="chip" data-s="${esc(c)}" aria-pressed="${c === shop}">${esc(c)}${c === 'Wszystkie' ? '' : ' · ' + sc[c]}</button>`).join('');
+  $('shops').onclick = e => { const b = e.target.closest('.chip'); if (!b) return; shop = b.dataset.s; store.set('shop', shop);
+    $('shops').querySelectorAll('.chip').forEach(x => x.setAttribute('aria-pressed', x === b)); cat = 'Wszystko'; drawCats(); reset(); };
   const order = ['XXS','XS','S','M','L','XL','XXL','XXXL'];
   const allSizes = [...new Set(DATA.deals.flatMap(d => d.sizes || []))].filter(x => x !== 'Jeden rozmiar');
   allSizes.sort((a, b) => { const ia = order.indexOf(a), ib = order.indexOf(b);
     if (ia > -1 || ib > -1) return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
     return (parseFloat(a) || 999) - (parseFloat(b) || 999) || a.localeCompare(b); });
   $('size').insertAdjacentHTML('beforeend', allSizes.map(x => `<option>${esc(x)}</option>`).join(''));
-  const counts = {};
-  DATA.deals.forEach(d => counts[d.category] = (counts[d.category] || 0) + 1);
-  const cats = ['Wszystko', ...Object.keys(counts).sort((a, b) => counts[b] - counts[a])];
-  $('cats').innerHTML = cats.map(c => `<button class="chip" data-c="${esc(c)}" aria-pressed="${c === cat}">${esc(c)}${c === 'Wszystko' ? '' : ' · ' + counts[c]}</button>`).join('');
+  drawCats();
   $('cats').onclick = e => { const b = e.target.closest('.chip'); if (!b) return; cat = b.dataset.c;
     $('cats').querySelectorAll('.chip').forEach(x => x.setAttribute('aria-pressed', x === b)); reset(); };
   const saved = store.get('filters', {});
@@ -148,6 +156,13 @@ function init() {
   render();
 }
 
+function drawCats() {
+  const counts = {};
+  DATA.deals.forEach(d => { if (shop === 'Wszystkie' || d.shop === shop) counts[d.category] = (counts[d.category] || 0) + 1; });
+  const cats = ['Wszystko', ...Object.keys(counts).sort((a, b) => counts[b] - counts[a])];
+  $('cats').innerHTML = cats.map(c => `<button class="chip" data-c="${esc(c)}" aria-pressed="${c === cat}">${esc(c)}${c === 'Wszystko' ? '' : ' · ' + counts[c]}</button>`).join('');
+}
+
 function reset() {
   limit = 60;
   store.set('filters', { sort: $('sort').value, minOff: $('minOff').value, maxPrice: $('maxPrice').value, size: $('size').value,
@@ -159,6 +174,7 @@ function render() {
   const q = $('q').value.trim().toLowerCase(), minOff = +$('minOff').value, maxP = parseFloat($('maxPrice').value), size = $('size').value;
   $('minOffV').textContent = minOff + '%';
   let list = DATA.deals.filter(d =>
+    (shop === 'Wszystkie' || d.shop === shop) &&
     (cat === 'Wszystko' || d.category === cat) && d.discount >= minOff &&
     (!maxP || d.current <= maxP) && (!q || d.name.toLowerCase().includes(q)) &&
     (!size || !d.sizes || !d.sizes.length || d.sizes.includes(size) || d.sizes.includes('Jeden rozmiar')) &&
@@ -177,7 +193,8 @@ function render() {
 
 function card(d) {
   const tags = [];
-  if (isNew(d)) tags.push('<span class="tag t-new">NOWE</span>');
+  if (d.stale) tags.push('<span class="tag t-warn" title="Sklep nie odpowiedział przy ostatnim skanie">dane z poprz. skanu</span>');
+  if (isNew(d) && !d.stale) tags.push('<span class="tag t-new">NOWE</span>');
   if (d.price_drop) tags.push('<span class="tag t-drop">↓ dalej tanieje</span>');
   if (d.was_cheaper) tags.push(`<span class="tag t-warn" title="Robot widział już niższą cenę">było ${zl(d.min_seen)}</span>`);
   const low = d.lowest30 && d.lowest30 < d.regular - 0.01
@@ -192,6 +209,7 @@ function card(d) {
     </a>
     <button class="fav" data-u="${esc(d.url)}" aria-pressed="${f}" aria-label="Ulubione">${f ? '♥' : '♡'}</button>
     <div class="body">
+      <div class="shop">${esc(d.shop)}</div>
       <a class="name" href="${esc(d.url)}" target="_blank" rel="noopener">${esc(d.name)}</a>
       <div class="prices"><span class="now">${zl(d.current)}</span><span class="was">${zl(d.regular)}</span></div>
       ${low}
