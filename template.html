@@ -53,7 +53,8 @@
   .prices { display:flex; align-items:baseline; gap:7px; flex-wrap:wrap; }
   .now { font-weight: 800; font-size: 18px; color: var(--hot); letter-spacing:-.02em; }
   .was { color: var(--muted); text-decoration: line-through; font-size: 13px; }
-  .low30 { font-size: 11px; color: var(--muted); }
+  .low30 { font-size: 11px; color: var(--warn); }
+  .sizes { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .tags { display:flex; flex-wrap:wrap; gap:4px; margin-top:auto; padding-top:4px; }
   .tag { font-size: 11px; font-weight:600; padding: 2px 7px; border-radius: 6px; }
   .t-new { background: var(--ok-soft); color: var(--ok); }
@@ -76,6 +77,7 @@
       <option value="new">Najnowsze</option>
       <option value="price">Najtańsze</option>
       <option value="saving">Największa oszczędność</option>
+      <option value="real">Realny rabat (vs 30 dni)</option>
     </select>
   </div>
   <div class="chips" id="cats"></div>
@@ -84,6 +86,7 @@
     <div class="filters">
       <label>Rabat min. <input type="range" id="minOff" min="10" max="80" step="5" value="10"> <b id="minOffV">10%</b></label>
       <label>Cena maks. (zł) <input type="number" id="maxPrice" min="0" step="5" placeholder="bez limitu"></label>
+      <label>Mój rozmiar <select id="size"><option value="">wszystkie</option></select></label>
       <label>Tylko nowe (24 h) <input type="checkbox" id="onlyNew"></label>
       <label>Ukryj podejrzane rabaty <input type="checkbox" id="hideSus"></label>
       <label>Tylko ulubione <input type="checkbox" id="onlyFav"></label>
@@ -105,6 +108,8 @@ const store = {
 let favs = new Set(store.get('favs', []));
 let cat = 'Wszystko', limit = 60;
 const zl = n => n.toFixed(2).replace('.', ',') + ' zł';
+const realOff = d => d.real_discount30 != null ? d.real_discount30 : d.discount;
+const isSus = d => d.was_cheaper || (d.lowest30 && d.lowest30 < d.regular - 0.01 && realOff(d) < d.discount - 5);
 const isNew = d => Date.now() - new Date(d.sale_since) < 864e5;
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
@@ -117,7 +122,13 @@ function ago(iso) {
 
 function init() {
   if (!DATA) { $('grid').innerHTML = '<div class="empty">Brak danych — robot jeszcze nie zrobił pierwszego skanu.</div>'; return; }
-  $('meta').innerHTML = `${DATA.deals.length} okazji<br>aktualizacja ${ago(DATA.updated)}`;
+  $('meta').innerHTML = `${esc(DATA.shop || '')} · ${DATA.deals.length} okazji<br>aktualizacja ${ago(DATA.updated)}`;
+  const order = ['XXS','XS','S','M','L','XL','XXL','XXXL'];
+  const allSizes = [...new Set(DATA.deals.flatMap(d => d.sizes || []))].filter(x => x !== 'Jeden rozmiar');
+  allSizes.sort((a, b) => { const ia = order.indexOf(a), ib = order.indexOf(b);
+    if (ia > -1 || ib > -1) return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+    return (parseFloat(a) || 999) - (parseFloat(b) || 999) || a.localeCompare(b); });
+  $('size').insertAdjacentHTML('beforeend', allSizes.map(x => `<option>${esc(x)}</option>`).join(''));
   const counts = {};
   DATA.deals.forEach(d => counts[d.category] = (counts[d.category] || 0) + 1);
   const cats = ['Wszystko', ...Object.keys(counts).sort((a, b) => counts[b] - counts[a])];
@@ -125,9 +136,9 @@ function init() {
   $('cats').onclick = e => { const b = e.target.closest('.chip'); if (!b) return; cat = b.dataset.c;
     $('cats').querySelectorAll('.chip').forEach(x => x.setAttribute('aria-pressed', x === b)); reset(); };
   const saved = store.get('filters', {});
-  ['sort', 'minOff', 'maxPrice'].forEach(k => { if (saved[k] != null) $(k).value = saved[k]; });
+  ['sort', 'minOff', 'maxPrice', 'size'].forEach(k => { if (saved[k] != null) $(k).value = saved[k]; });
   ['onlyNew', 'hideSus', 'onlyFav'].forEach(k => $(k).checked = !!saved[k]);
-  ['q', 'sort', 'minOff', 'maxPrice', 'onlyNew', 'hideSus', 'onlyFav'].forEach(k => $(k).addEventListener('input', reset));
+  ['q', 'sort', 'minOff', 'maxPrice', 'size', 'onlyNew', 'hideSus', 'onlyFav'].forEach(k => $(k).addEventListener('input', reset));
   $('more').onclick = () => { limit += 60; render(); };
   $('grid').onclick = e => {
     const b = e.target.closest('.fav'); if (!b) return;
@@ -139,22 +150,24 @@ function init() {
 
 function reset() {
   limit = 60;
-  store.set('filters', { sort: $('sort').value, minOff: $('minOff').value, maxPrice: $('maxPrice').value,
+  store.set('filters', { sort: $('sort').value, minOff: $('minOff').value, maxPrice: $('maxPrice').value, size: $('size').value,
     onlyNew: $('onlyNew').checked, hideSus: $('hideSus').checked, onlyFav: $('onlyFav').checked });
   render();
 }
 
 function render() {
-  const q = $('q').value.trim().toLowerCase(), minOff = +$('minOff').value, maxP = parseFloat($('maxPrice').value);
+  const q = $('q').value.trim().toLowerCase(), minOff = +$('minOff').value, maxP = parseFloat($('maxPrice').value), size = $('size').value;
   $('minOffV').textContent = minOff + '%';
   let list = DATA.deals.filter(d =>
     (cat === 'Wszystko' || d.category === cat) && d.discount >= minOff &&
     (!maxP || d.current <= maxP) && (!q || d.name.toLowerCase().includes(q)) &&
-    (!$('onlyNew').checked || isNew(d)) && (!$('hideSus').checked || !d.was_cheaper) &&
+    (!size || !d.sizes || !d.sizes.length || d.sizes.includes(size) || d.sizes.includes('Jeden rozmiar')) &&
+    (!$('onlyNew').checked || isNew(d)) && (!$('hideSus').checked || !isSus(d)) &&
     (!$('onlyFav').checked || favs.has(d.url)));
   const s = $('sort').value;
   const by = { discount: (a, b) => b.discount - a.discount, price: (a, b) => a.current - b.current,
-    saving: (a, b) => (b.regular - b.current) - (a.regular - a.current), new: (a, b) => b.sale_since.localeCompare(a.sale_since) };
+    saving: (a, b) => (b.regular - b.current) - (a.regular - a.current),
+    real: (a, b) => realOff(b) - realOff(a), new: (a, b) => b.sale_since.localeCompare(a.sale_since) };
   list.sort(by[s]);
   $('count').textContent = list.length ? `${list.length} produktów` : '';
   $('grid').innerHTML = list.length ? list.slice(0, limit).map(card).join('')
@@ -167,7 +180,10 @@ function card(d) {
   if (isNew(d)) tags.push('<span class="tag t-new">NOWE</span>');
   if (d.price_drop) tags.push('<span class="tag t-drop">↓ dalej tanieje</span>');
   if (d.was_cheaper) tags.push(`<span class="tag t-warn" title="Robot widział już niższą cenę">było ${zl(d.min_seen)}</span>`);
-  const low = d.lowest30 ? `<div class="low30">Najniższa z 30 dni: ${zl(d.lowest30)}${d.real_discount30 != null && d.real_discount30 < d.discount ? ` (realnie −${Math.max(0, d.real_discount30)}%)` : ''}</div>` : '';
+  const low = d.lowest30 && d.lowest30 < d.regular - 0.01
+    ? `<div class="low30">Najniższa z 30 dni: ${zl(d.lowest30)} → realnie −${Math.max(0, realOff(d))}%</div>` : '';
+  const sz = d.sizes && d.sizes.length && !(d.sizes.length === 1 && d.sizes[0] === 'Jeden rozmiar')
+    ? `<div class="sizes">Rozmiary: ${d.sizes.map(esc).join(' · ')}</div>` : '';
   const f = favs.has(d.url);
   return `<article class="card">
     <a class="img" href="${esc(d.url)}" target="_blank" rel="noopener">
@@ -179,6 +195,7 @@ function card(d) {
       <a class="name" href="${esc(d.url)}" target="_blank" rel="noopener">${esc(d.name)}</a>
       <div class="prices"><span class="now">${zl(d.current)}</span><span class="was">${zl(d.regular)}</span></div>
       ${low}
+      ${sz}
       ${tags.length ? `<div class="tags">${tags.join('')}</div>` : ''}
     </div>
   </article>`;

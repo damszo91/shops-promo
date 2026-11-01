@@ -1,1 +1,2 @@
+# Nowa wersja robota nie wymaga dodatkow. Plik zostawiony dla zgodnosci ze starszym plikiem .github/workflows/skan.yml
 playwright>=1.48

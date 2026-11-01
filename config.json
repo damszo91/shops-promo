@@ -1,11 +1,18 @@
 {
-  "base_url": "https://www.sinsay.com/pl/pl/",
-  "start_urls": [],
-  "discover_keywords": ["wyprzeda", "promocj", "sale", "przecen", "outlet", "okazj", "-50", "-70"],
-  "max_listing_pages": 12,
-  "max_scrolls_per_page": 60,
-  "product_url_regex": "/pl/pl/[a-z0-9-]*-[0-9a-z]{4,6}-[0-9a-z]{2,3}/?$",
+  "site_url": "https://www.sinsay.com/pl/pl/",
+  "api_url": "https://arch.sinsay.com/api/",
+  "store_id": 17,
+  "departments": [
+    {"label": "Kobieta",   "path": "kobieta",   "id": 1727},
+    {"label": "Mężczyzna", "path": "mezczyzna", "id": 23741},
+    {"label": "Dziecko",   "path": "dziecko",   "id": 35895},
+    {"label": "Dom",       "path": "dom",       "id": 26207},
+    {"label": "Buty",      "path": "shoes",     "id": 85909},
+    {"label": "Uroda",     "path": "uroda",     "id": 81893}
+  ],
+  "page_size": 200,
+  "max_per_department": 8000,
   "min_discount_percent": 10,
-  "delay_seconds": 2.0,
+  "delay_seconds": 1.5,
   "history_days": 60
 }
