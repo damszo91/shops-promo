@@ -2,7 +2,7 @@ name: Shops Promo - skan
 
 on:
   schedule:
-    - cron: "7 6,12,18 * * *"
+    - cron: "7 6,18 * * *"
   workflow_dispatch: {}
 
 permissions:
