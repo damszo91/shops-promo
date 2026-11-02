@@ -460,6 +460,17 @@ def scan_esotiq(f, shop, dept):
 
 # ---------------------------------------------------------------- Calzedonia (nowa wersja sklepu Salesforce)
 
+def public_image(url, site):
+    """Calzedonia podaje zdjęcia z wewnętrznego serwera (…demandware.net), który blokuje
+    dostęp z zewnątrz – ten sam plik jest dostępny pod adresem sklepu."""
+    if not url:
+        return None
+    u = urllib.parse.urlparse(url)
+    if u.netloc.endswith("demandware.net"):
+        return site.rstrip("/") + u.path + ("?" + u.query if u.query else "")
+    return url
+
+
 def scan_calz(f, shop, dept):
     page, got, seen = 1, 0, set()
     while True:
@@ -490,7 +501,7 @@ def scan_calz(f, shop, dept):
             yield {
                 "url": shop["site"] + "/pl" + path,
                 "name": (p.get("productName") or "").strip(),
-                "image": p.get("c_image"),
+                "image": public_image(p.get("c_image"), shop["site"]),
                 "current": num(sales.get("value")), "regular": num(lst.get("value")),
                 "lowest30": num((sales.get("oldPriceOmnibus") or {}).get("value")), "sizes": sizes,
             }
