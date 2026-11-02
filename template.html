@@ -63,6 +63,9 @@
   .t-new { background: var(--ok-soft); color: var(--ok); }
   .t-drop { background: var(--hot-soft); color: var(--hot); }
   .t-warn { background: var(--warn-soft); color: var(--warn); }
+  .t-best { background: #ffe9cc; color: #a34700; }
+  @media (prefers-color-scheme: dark) { .t-best { background: #3d2610; color: #ffb366; } }
+  .chip-best[aria-pressed=false] { border-color: #f0a050; }
   .empty { text-align:center; color: var(--muted); padding: 60px 20px; }
   .more { display:block; margin: 18px auto; padding: 11px 22px; border-radius: 999px; border:1px solid var(--line); background: var(--card); color: inherit; font: inherit; cursor:pointer; }
 </style>
@@ -127,7 +130,8 @@ function ago(iso) {
 function init() {
   if (!DATA) { $('grid').innerHTML = '<div class="empty">Brak danych — robot jeszcze nie zrobił pierwszego skanu.</div>'; return; }
   const shopNames = [...new Set(DATA.deals.map(d => d.shop))];
-  $('meta').innerHTML = `${shopNames.length} sklepów · ${DATA.deals.length} okazji<br>aktualizacja ${ago(DATA.updated)}`;
+  const n = shopNames.length, w = n === 1 ? 'sklep' : (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14)) ? 'sklepy' : 'sklepów';
+  $('meta').innerHTML = `${n} ${w} · ${DATA.deals.length} okazji<br>aktualizacja ${ago(DATA.updated)}`;
   const sc = {}; DATA.deals.forEach(d => sc[d.shop] = (sc[d.shop] || 0) + 1);
   shop = store.get('shop', 'Wszystkie'); if (shop !== 'Wszystkie' && !sc[shop]) shop = 'Wszystkie';
   $('shops').innerHTML = ['Wszystkie', ...Object.keys(sc).sort((a, b) => sc[b] - sc[a])].map(c =>
@@ -160,7 +164,9 @@ function drawCats() {
   const counts = {};
   DATA.deals.forEach(d => { if (shop === 'Wszystkie' || d.shop === shop) counts[d.category] = (counts[d.category] || 0) + 1; });
   const cats = ['Wszystko', ...Object.keys(counts).sort((a, b) => counts[b] - counts[a])];
-  $('cats').innerHTML = cats.map(c => `<button class="chip" data-c="${esc(c)}" aria-pressed="${c === cat}">${esc(c)}${c === 'Wszystko' ? '' : ' · ' + counts[c]}</button>`).join('');
+  const nBest = DATA.deals.filter(d => d.best && (shop === 'Wszystkie' || d.shop === shop)).length;
+  $('cats').innerHTML = cats.map((c, i) => `<button class="chip" data-c="${esc(c)}" aria-pressed="${c === cat}">${esc(c)}${c === 'Wszystko' ? '' : ' · ' + counts[c]}</button>`
+    + (i === 0 && nBest ? `<button class="chip chip-best" data-c="__best" aria-pressed="${cat === '__best'}">🔥 Bestsellery · ${nBest}</button>` : '')).join('');
 }
 
 function reset() {
@@ -175,7 +181,7 @@ function render() {
   $('minOffV').textContent = minOff + '%';
   let list = DATA.deals.filter(d =>
     (shop === 'Wszystkie' || d.shop === shop) &&
-    (cat === 'Wszystko' || d.category === cat) && d.discount >= minOff &&
+    (cat === 'Wszystko' || (cat === '__best' ? d.best : d.category === cat)) && d.discount >= minOff &&
     (!maxP || d.current <= maxP) && (!q || d.name.toLowerCase().includes(q)) &&
     (!size || !d.sizes || !d.sizes.length || d.sizes.includes(size) || d.sizes.includes('Jeden rozmiar')) &&
     (!$('onlyNew').checked || isNew(d)) && (!$('hideSus').checked || !isSus(d)) &&
@@ -183,7 +189,8 @@ function render() {
   const s = $('sort').value;
   const by = { discount: (a, b) => b.discount - a.discount, price: (a, b) => a.current - b.current,
     saving: (a, b) => (b.regular - b.current) - (a.regular - a.current),
-    real: (a, b) => realOff(b) - realOff(a), new: (a, b) => b.sale_since.localeCompare(a.sale_since) };
+    real: (a, b) => realOff(b) - realOff(a),
+    new: (a, b) => b.sale_since.localeCompare(a.sale_since) };
   list.sort(by[s]);
   $('count').textContent = list.length ? `${list.length} produktów` : '';
   $('grid').innerHTML = list.length ? list.slice(0, limit).map(card).join('')
@@ -195,6 +202,7 @@ function card(d) {
   const tags = [];
   if (d.stale) tags.push('<span class="tag t-warn" title="Sklep nie odpowiedział przy ostatnim skanie">dane z poprz. skanu</span>');
   if (isNew(d) && !d.stale) tags.push('<span class="tag t-new">NOWE</span>');
+  if (d.best) tags.push('<span class="tag t-best" title="Sklep oznaczył ten produkt jako bestseller">🔥 Bestseller</span>');
   if (d.price_drop) tags.push('<span class="tag t-drop">↓ dalej tanieje</span>');
   if (d.was_cheaper) tags.push(`<span class="tag t-warn" title="Robot widział już niższą cenę">było ${zl(d.min_seen)}</span>`);
   const low = d.lowest30 && d.lowest30 < d.regular - 0.01

@@ -127,6 +127,32 @@ def num(v):
         return None
 
 
+BEST_RE = re.compile(r"best\s*-?\s*seller|top\s*seller|hit\s+sprzeda", re.I)
+
+
+def is_best(raw):
+    """Czy sklep oznaczył produkt jako bestseller? Sprawdza tylko wartości tekstowe
+    (nie nazwy pól), żeby pole w rodzaju "bestseller": null nie dawało fałszywego wyniku."""
+    if isinstance(raw, str):
+        return bool(BEST_RE.search(raw))
+    found = False
+
+    def walk(o):
+        nonlocal found
+        if found:
+            return
+        if isinstance(o, dict):
+            for v in o.values():
+                walk(v)
+        elif isinstance(o, list):
+            for v in o:
+                walk(v)
+        elif isinstance(o, str) and len(o) < 80 and BEST_RE.search(o):
+            found = True
+    walk(raw)
+    return found
+
+
 def json_block(text, start):
     """Wycina z tekstu poprawny blok JSON ([...] lub {...}) zaczynający się w miejscu `start`."""
     depth, in_str, esc = 0, False, False
@@ -188,6 +214,8 @@ def lpp_product(p, shop):
         "name": (p.get("namePl") or p.get("name") or "").strip(),
         "image": img, "current": current, "regular": regular,
         "lowest30": num(p.get("historyPrice")), "sizes": sizes,
+        # sklep oznacza bestsellery polem "bestseller" (np. „bestseller w kategorii X”) albo naklejką BESTSELLER
+        "best": bool(p.get("bestseller")) or is_best(p.get("stickers")) or is_best(p.get("sticker")),
     }
 
 
@@ -241,6 +269,7 @@ def scan_answear(f, shop, dept):
                 "name": (p.get("frontName") or p.get("name") or "").strip(),
                 "image": img, "current": num(p.get("price")), "regular": num(p.get("priceRegular")),
                 "lowest30": num(p.get("priceMinimal")), "sizes": sizes,
+                "best": is_best(p.get("badges")) or is_best(p.get("badgesFront")),
             }
         got += len(items)
         log(f"    {got}/{total}")
@@ -277,6 +306,7 @@ def scan_hm(f, shop, dept):
                 "image": p.get("imageProductSrc") or p.get("imageModelSrc"),
                 "current": current, "regular": regular,
                 "lowest30": num(p.get("priorPrice")), "sizes": [],
+                "best": is_best(p.get("marketingMarkerText") or "") or is_best(p.get("promotionalMarkerText") or ""),
             }
         total = int(d.get("totalHits") or 0)
         pages = int(d.get("totalPages") or 0)
@@ -299,6 +329,26 @@ PROMO_KEY = re.compile(r"(?:^|[_-])(PROMO|PROMOS|PROMOCIONES|PVP_GENERAL|SPECIAL
 def section_label(path):
     top = path.strip("/").split("/")[0].strip().upper()
     return SECTION_NAMES.get(top, top.title() or "Inne")
+
+
+BEST_CAT = re.compile(r"BEST[ _-]?SELLER", re.I)
+
+
+def best_categories(cats):
+    """Kategorie „Best sellers” sklepu (szukane po nazwie i kluczu)."""
+    found, seen = [], set()
+
+    def walk(items, path):
+        for c in items or []:
+            p = path + "/" + (c.get("name") or "")
+            if BEST_CAT.search(str(c.get("key") or "") + " " + (c.get("name") or "")) and not re.search(r"TEST", str(c.get("key") or "")):
+                cid = c.get("redirectCategoryId") or c.get("id")
+                if cid and cid not in seen:
+                    seen.add(cid)
+                    found.append((cid, section_label(p), p))
+            walk(c.get("subcategories"), p)
+    walk(cats, "")
+    return found
 
 
 def promo_categories(cats):
@@ -331,9 +381,10 @@ def scan_zara(f, shop):
     site = shop["site"]
     warm = site + "/pl/"
     text, _ = f.browser_get(site + "/pl/pl/categories?ajax=true", warmup=warm)
-    cats = promo_categories(json.loads(text).get("categories"))
-    log(f"  działy promocji: {len(cats)}")
-    for cid, label, path in cats:
+    tree = json.loads(text).get("categories")
+    cats = [(c, False) for c in promo_categories(tree)] + [(c, True) for c in best_categories(tree)]
+    log(f"  działy promocji: {sum(1 for c in cats if not c[1])}, bestsellerów: {sum(1 for c in cats if c[1])}")
+    for (cid, label, path), in_best in cats:
         try:
             text, _ = f.browser_get(f"{site}/pl/pl/category/{cid}/products?ajax=true", warmup=warm)
             data = json.loads(text)
@@ -359,6 +410,7 @@ def scan_zara(f, shop):
                         "name": (c.get("name") or "").strip().capitalize(),
                         "image": img, "current": money(c.get("price")), "regular": money(c.get("oldPrice")),
                         "lowest30": None, "sizes": [],
+                        "best": in_best or is_best(c.get("productTag")) or is_best(c.get("tagTypes")),
                     }
         log(f"    {path}: {n}")
 
@@ -388,10 +440,11 @@ def scan_itx(f, shop):
     warm = site + "/pl/"
     q = f"languageId={L}&appId=1"
     text, _ = f.browser_get(f"{base}/2/catalog/store/{S}/{C}/category?{q}&typeCatalog=1", warmup=warm)
-    cats = promo_categories(json.loads(text).get("categories"))
-    log(f"  działy promocji: {len(cats)}")
-    labels = {}
-    for cid, label, path in cats:
+    tree = json.loads(text).get("categories")
+    cats = [(c, False) for c in promo_categories(tree)] + [(c, True) for c in best_categories(tree)]
+    log(f"  działy promocji: {sum(1 for c in cats if not c[1])}, bestsellerów: {sum(1 for c in cats if c[1])}")
+    labels, best_ids = {}, set()
+    for (cid, label, path), in_best in cats:
         try:
             text, _ = f.browser_get(f"{base}/3/catalog/store/{S}/{C}/category/{cid}/product?{q}&showProducts=false",
                                     warmup=warm)
@@ -402,6 +455,8 @@ def scan_itx(f, shop):
         log(f"    {path}: {len(ids)}")
         for i in ids:
             labels.setdefault(i, label)
+            if in_best:
+                best_ids.add(i)
     ids = list(labels)
     for k in range(0, len(ids), 40):
         chunk = ids[k:k + 40]
@@ -431,13 +486,26 @@ def scan_itx(f, shop):
                 "image": img, "current": money(best.get("price")), "regular": money(best.get("oldPrice")),
                 "lowest30": None,
                 "sizes": [str(s.get("name")) for s in sizes if s.get("isBuyable") and s.get("name")],
+                "best": p.get("id") in best_ids or is_best(p.get("tags")),
             }
         log(f"    produkty: {min(k + 40, len(ids))}/{len(ids)}")
 
 
 # ---------------------------------------------------------------- Esotiq
 
+ESOTIQ_BEST = {}
+
+
 def scan_esotiq(f, shop, dept):
+    # etykiety produktów są podane numerami – słownik numer → tekst pobieramy raz
+    if not ESOTIQ_BEST:
+        try:
+            labels, _ = f.get(shop["api"] + "labels/", referer=shop["site"], as_json=True)
+            ESOTIQ_BEST.update({str(l["id"]): True for l in labels
+                                if is_best(re.sub(r"<[^>]+>", " ", l.get("text") or ""))})
+        except Exception as e:
+            log(f"    nie udało się pobrać etykiet ({e})")
+        ESOTIQ_BEST.setdefault("_", False)
     url = f"{shop['api']}model-colors/?category={dept['id']}&page=1&page_size=100"
     got = 0
     while url:
@@ -452,6 +520,7 @@ def scan_esotiq(f, shop, dept):
                 "image": img, "current": num(pc.get("price")),
                 "regular": num(pc.get("base_price")) or num(pc.get("reference_price")),
                 "lowest30": num(pc.get("min_30d_price")), "sizes": [],
+                "best": any(ESOTIQ_BEST.get(str(l)) for l in [*(p.get("labels") or []), p.get("offer_label")]),
             }
         got += len(items)
         log(f"    {got}/{data.get('count')}")
@@ -504,6 +573,7 @@ def scan_calz(f, shop, dept):
                 "image": public_image(p.get("c_image"), shop["site"]),
                 "current": num(sales.get("value")), "regular": num(lst.get("value")),
                 "lowest30": num((sales.get("oldPriceOmnibus") or {}).get("value")), "sizes": sizes,
+                "best": is_best({k: v for k, v in p.items() if k not in ("productName", "c_variationsFullData")}),
             }
         got += new
         log(f"    strona {page} – {got}/{total}")
@@ -545,6 +615,7 @@ def scan_sfra(f, shop, dept):
                 "name": htmllib.unescape(name.group(1)) if name else "",
                 "image": htmllib.unescape(img.group(1)) if img else None,
                 "current": vals[0], "regular": vals[-1], "lowest30": None, "sizes": [],
+                "best": is_best(re.sub(r"<[^>]+>", " ", t)),
             }
         log(f"    {len(seen)} produktów")
         if not new or len(tiles) < 150 or start >= 2000:
@@ -567,16 +638,19 @@ def scan(cfg):
         log(f"=== {shop['name']} ===")
         count = 0
 
-        def add(p, label):
+        def add(p, label, best=False):
             nonlocal count
             if not p["url"] or not p["name"] or not p["current"] or not p["regular"]:
+                return
+            p["best"] = bool(p.get("best") or best)
+            if p["url"] in products:
+                products[p["url"]]["best"] = products[p["url"]].get("best") or p["best"]
                 return
             p.update(shop=shop["name"], category=label,
                      current=round(p["current"], 2), regular=round(p["regular"], 2),
                      sizes=list(dict.fromkeys(str(x) for x in p.get("sizes") or []))[:14])
-            if p["url"] not in products:
-                products[p["url"]] = p
-                count += 1
+            products[p["url"]] = p
+            count += 1
 
         if shop["type"] in SHOP_SCANNERS:
             try:
@@ -588,7 +662,7 @@ def scan(cfg):
             log(f"  {dept['label']}")
             try:
                 for p in SCANNERS[shop["type"]](f, shop, dept):
-                    add(p, dept["label"])
+                    add(p, dept["label"], best=dept.get("best", False))
             except Exception as e:
                 log(f"    POMIJAM ({e})")
         per_shop[shop["name"]] = count
@@ -633,6 +707,7 @@ def update_history(products, cfg):
             "was_cheaper": bool(min_before is not None and min_before < p["current"] - 0.01),
             "min_seen": min(min_before, p["current"]) if min_before is not None else p["current"],
             "real_discount30": round((1 - p["current"] / low) * 100) if low else None,
+            "best": bool(p.get("best")),
         })
         if not last or last[1:] != [p["current"], p["regular"]]:
             prev.append([now_s, p["current"], p["regular"]])

@@ -139,6 +139,21 @@
         {
           "label": "Dom",
           "path": "/sale/home"
+        },
+        {
+          "label": "Kobieta",
+          "path": "/s/bestsellery/ona",
+          "best": true
+        },
+        {
+          "label": "Mężczyzna",
+          "path": "/s/bestsellery/on",
+          "best": true
+        },
+        {
+          "label": "Dom",
+          "path": "/s/bestsellery/home",
+          "best": true
         }
       ]
     },
@@ -219,6 +234,16 @@
         {
           "label": "Dziecko",
           "path": "/pl/dzieci/wyprzeda%C5%BC/"
+        },
+        {
+          "label": "Kobieta",
+          "path": "/pl/kobieta/best_sellers/",
+          "best": true
+        },
+        {
+          "label": "Mężczyzna",
+          "path": "/pl/m%C4%99%C5%BCczyzna/best_sellers/",
+          "best": true
         }
       ]
     },
