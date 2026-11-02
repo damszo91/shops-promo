@@ -365,6 +365,23 @@ def scan_zara(f, shop):
 
 # ---------------------------------------------------------------- Bershka, Pull&Bear, Stradivarius
 
+def itx_image(detail):
+    """Zdjęcie produktu. Pierwsze pliki na liście bywają zbliżeniem materiału (clazz 2) –
+    bierzemy pierwsze zwykłe zdjęcie (clazz 1) i prosimy o mniejszy rozmiar."""
+    fallback = None
+    for x in detail.get("xmedia") or []:
+        for item in x.get("xmediaItems") or []:
+            for m in item.get("medias") or []:
+                url = (m.get("extraInfo") or {}).get("deliveryUrl")
+                if not url:
+                    continue
+                url += ("&" if "?" in url else "?") + "w=500&f=auto"
+                if m.get("clazz") == 1:
+                    return url
+                fallback = fallback or url
+    return fallback
+
+
 def scan_itx(f, shop):
     site, S, C, L = shop["site"], shop["store_id"], shop["catalog_id"], shop.get("lang", -22)
     base = f"{site}/itxrest"
@@ -404,11 +421,7 @@ def scan_itx(f, shop):
             if not priced:
                 continue
             best = min(priced, key=lambda s: num(s["price"]) or 1e9)
-            img = None
-            try:
-                img = detail["xmedia"][0]["xmediaItems"][0]["medias"][0]["extraInfo"]["deliveryUrl"]
-            except Exception:
-                pass
+            img = itx_image(detail)
             purl = p.get("productUrl") or summ.get("productUrl")
             if not purl:
                 continue
@@ -549,7 +562,7 @@ def scan(cfg):
                 return
             p.update(shop=shop["name"], category=label,
                      current=round(p["current"], 2), regular=round(p["regular"], 2),
-                     sizes=p.get("sizes", [])[:14])
+                     sizes=list(dict.fromkeys(str(x) for x in p.get("sizes") or []))[:14])
             if p["url"] not in products:
                 products[p["url"]] = p
                 count += 1
