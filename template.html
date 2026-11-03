@@ -37,6 +37,11 @@
   #shops .chip[aria-pressed=true] { background: var(--hot); border-color: var(--hot); color: #fff; }
   .shop { font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
   details { margin-top: 8px; }
+  .seg { display:flex; align-items:center; gap:6px; margin-top:10px; font-size:13px; color: var(--muted); }
+  .seg button { font: inherit; font-size: 13px; padding: 6px 11px; border-radius: 999px; border: 1px solid var(--line);
+                background: var(--card); color: var(--ink); cursor: pointer; }
+  .seg button[aria-pressed=true] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+  .note { color: var(--muted); font-size: 12px; margin: -4px 2px 10px; }
   summary { cursor:pointer; color: var(--muted); font-size: 13px; }
   .filters { display:grid; gap:10px; padding:10px 0 2px; }
   .filters label { display:flex; align-items:center; justify-content:space-between; gap:10px; font-size:14px; }
@@ -83,8 +88,12 @@
       <option value="new">Najnowsze</option>
       <option value="price">Najtańsze</option>
       <option value="saving">Największa oszczędność</option>
-      <option value="real">Realny rabat (vs 30 dni)</option>
     </select>
+  </div>
+  <div class="seg" id="base" role="group" aria-label="Od jakiej ceny liczyć rabat">
+    <span>Rabat od:</span>
+    <button data-b="regular" aria-pressed="true">ceny wyjściowej</button>
+    <button data-b="low30" aria-pressed="false">najniższej z 30 dni</button>
   </div>
   <div class="chips" id="shops"></div>
   <div class="chips" id="cats"></div>
@@ -102,6 +111,7 @@
 </header>
 <main>
   <div class="count" id="count"></div>
+  <div class="note" id="note"></div>
   <div class="grid" id="grid"></div>
   <button class="more" id="more" hidden>Pokaż więcej</button>
 </main>
@@ -116,6 +126,10 @@ let favs = new Set(store.get('favs', []));
 let cat = 'Wszystko', shop = 'Wszystkie', limit = 60;
 const zl = n => n.toFixed(2).replace('.', ',') + ' zł';
 const realOff = d => d.real_discount30 != null ? d.real_discount30 : d.discount;
+let base = 'regular';
+// rabat według wybranej podstawy; gdy sklep nie podaje ceny z 30 dni – liczony od ceny wyjściowej
+const has30 = d => d.lowest30 != null && d.real_discount30 != null;
+const off = d => base === 'low30' && has30(d) ? Math.max(0, d.real_discount30) : d.discount;
 const isSus = d => d.was_cheaper || (d.lowest30 && d.lowest30 < d.regular - 0.01 && realOff(d) < d.discount - 5);
 const isNew = d => Date.now() - new Date(d.sale_since) < 864e5;
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -148,6 +162,11 @@ function init() {
   $('cats').onclick = e => { const b = e.target.closest('.chip'); if (!b) return; cat = b.dataset.c;
     $('cats').querySelectorAll('.chip').forEach(x => x.setAttribute('aria-pressed', x === b)); reset(); };
   const saved = store.get('filters', {});
+  base = store.get('base', saved.sort === 'real' ? 'low30' : 'regular');
+  if (saved.sort === 'real') saved.sort = 'discount';
+  const paintBase = () => $('base').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', b.dataset.b === base));
+  paintBase();
+  $('base').onclick = e => { const b = e.target.closest('button'); if (!b) return; base = b.dataset.b; store.set('base', base); paintBase(); reset(); };
   ['sort', 'minOff', 'maxPrice', 'size'].forEach(k => { if (saved[k] != null) $(k).value = saved[k]; });
   ['onlyNew', 'hideSus', 'onlyFav'].forEach(k => $(k).checked = !!saved[k]);
   ['q', 'sort', 'minOff', 'maxPrice', 'size', 'onlyNew', 'hideSus', 'onlyFav'].forEach(k => $(k).addEventListener('input', reset));
@@ -181,18 +200,19 @@ function render() {
   $('minOffV').textContent = minOff + '%';
   let list = DATA.deals.filter(d =>
     (shop === 'Wszystkie' || d.shop === shop) &&
-    (cat === 'Wszystko' || (cat === '__best' ? d.best : d.category === cat)) && d.discount >= minOff &&
+    (cat === 'Wszystko' || (cat === '__best' ? d.best : d.category === cat)) && off(d) >= minOff &&
     (!maxP || d.current <= maxP) && (!q || d.name.toLowerCase().includes(q)) &&
     (!size || !d.sizes || !d.sizes.length || d.sizes.includes(size) || d.sizes.includes('Jeden rozmiar')) &&
     (!$('onlyNew').checked || isNew(d)) && (!$('hideSus').checked || !isSus(d)) &&
     (!$('onlyFav').checked || favs.has(d.url)));
   const s = $('sort').value;
-  const by = { discount: (a, b) => b.discount - a.discount, price: (a, b) => a.current - b.current,
+  const by = { discount: (a, b) => off(b) - off(a) || b.discount - a.discount, price: (a, b) => a.current - b.current,
     saving: (a, b) => (b.regular - b.current) - (a.regular - a.current),
-    real: (a, b) => realOff(b) - realOff(a),
     new: (a, b) => b.sale_since.localeCompare(a.sale_since) };
   list.sort(by[s]);
   $('count').textContent = list.length ? `${list.length} produktów` : '';
+  const no30 = base === 'low30' ? list.filter(d => !has30(d)).length : 0;
+  $('note').textContent = no30 ? `* ${no30} produktów ze sklepów, które nie podają najniższej ceny z 30 dni – dla nich rabat liczony od ceny wyjściowej.` : '';
   $('grid').innerHTML = list.length ? list.slice(0, limit).map(card).join('')
     : '<div class="empty" style="grid-column:1/-1">Nic nie pasuje do filtrów.</div>';
   $('more').hidden = list.length <= limit;
@@ -205,21 +225,23 @@ function card(d) {
   if (d.best) tags.push('<span class="tag t-best" title="Sklep oznaczył ten produkt jako bestseller">🔥 Bestseller</span>');
   if (d.price_drop) tags.push('<span class="tag t-drop">↓ dalej tanieje</span>');
   if (d.was_cheaper) tags.push(`<span class="tag t-warn" title="Robot widział już niższą cenę">było ${zl(d.min_seen)}</span>`);
-  const low = d.lowest30 && d.lowest30 < d.regular - 0.01
-    ? `<div class="low30">Najniższa z 30 dni: ${zl(d.lowest30)} → realnie −${Math.max(0, realOff(d))}%</div>` : '';
+  const low = !has30(d) ? ''
+    : base === 'low30'
+      ? (d.lowest30 < d.regular - 0.01 ? `<div class="low30">Cena wyjściowa: ${zl(d.regular)} (−${d.discount}%)</div>` : '')
+      : (d.lowest30 < d.regular - 0.01 ? `<div class="low30">Najniższa z 30 dni: ${zl(d.lowest30)} → realnie −${Math.max(0, d.real_discount30)}%</div>` : '');
   const sz = d.sizes && d.sizes.length && !(d.sizes.length === 1 && d.sizes[0] === 'Jeden rozmiar')
     ? `<div class="sizes">Rozmiary: ${d.sizes.map(esc).join(' · ')}</div>` : '';
   const f = favs.has(d.url);
   return `<article class="card">
     <a class="img" href="${esc(d.url)}" target="_blank" rel="noopener">
       ${d.image ? `<img src="${esc(d.image)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : ''}
-      <span class="off">−${d.discount}%</span>
+      <span class="off" title="${base === 'low30' ? (has30(d) ? 'Rabat od najniższej ceny z 30 dni' : 'Sklep nie podaje ceny z 30 dni – rabat od ceny wyjściowej') : 'Rabat od ceny wyjściowej'}">−${off(d)}%${base === 'low30' && !has30(d) ? '*' : ''}</span>
     </a>
     <button class="fav" data-u="${esc(d.url)}" aria-pressed="${f}" aria-label="Ulubione">${f ? '♥' : '♡'}</button>
     <div class="body">
       <div class="shop">${esc(d.shop)}</div>
       <a class="name" href="${esc(d.url)}" target="_blank" rel="noopener">${esc(d.name)}</a>
-      <div class="prices"><span class="now">${zl(d.current)}</span><span class="was">${zl(d.regular)}</span></div>
+      <div class="prices"><span class="now">${zl(d.current)}</span><span class="was" title="${base === 'low30' && has30(d) ? 'Najniższa cena z 30 dni' : 'Cena wyjściowa'}">${zl(base === 'low30' && has30(d) ? d.lowest30 : d.regular)}</span></div>
       ${low}
       ${sz}
       ${tags.length ? `<div class="tags">${tags.join('')}</div>` : ''}
