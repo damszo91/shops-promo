@@ -207,8 +207,10 @@ def lpp_product(p, shop):
                 break
         except Exception:
             pass
+    # rozmiar jest do kupienia, gdy sklep podaje stock=true i (jeśli podaje) liczbę sztuk > 0
     sizes = [str(s["sizeName"]) for s in (p.get("sizes") or [])
-             if isinstance(s, dict) and s.get("stock") and s.get("sizeName")]
+             if isinstance(s, dict) and s.get("stock") and s.get("sizeName")
+             and (s.get("stockQuantity") is None or (num(s.get("stockQuantity")) or 0) > 0)]
     return {
         "url": urllib.parse.urljoin(shop["site"], (p.get("url") or "").split("?")[0]),
         "name": (p.get("namePl") or p.get("name") or "").strip(),
@@ -216,6 +218,7 @@ def lpp_product(p, shop):
         "lowest30": num(p.get("historyPrice")), "sizes": sizes,
         # sklep oznacza bestsellery polem "bestseller" (np. „bestseller w kategorii X”) albo naklejką BESTSELLER
         "best": bool(p.get("bestseller")) or is_best(p.get("stickers")) or is_best(p.get("sticker")),
+        "available": bool(sizes) if p.get("sizes") else True,
     }
 
 
@@ -270,6 +273,7 @@ def scan_answear(f, shop, dept):
                 "image": img, "current": num(p.get("price")), "regular": num(p.get("priceRegular")),
                 "lowest30": num(p.get("priceMinimal")), "sizes": sizes,
                 "best": is_best(p.get("badges")) or is_best(p.get("badgesFront")),
+                "available": p.get("availableForBuy", True) is not False and (bool(sizes) or not p.get("allSizes")),
             }
         got += len(items)
         log(f"    {got}/{total}")
@@ -411,6 +415,7 @@ def scan_zara(f, shop):
                         "image": img, "current": money(c.get("price")), "regular": money(c.get("oldPrice")),
                         "lowest30": None, "sizes": [],
                         "best": in_best or is_best(c.get("productTag")) or is_best(c.get("tagTypes")),
+                        "available": str(c.get("availability") or "in_stock").lower() == "in_stock",
                     }
         log(f"    {path}: {n}")
 
@@ -487,6 +492,7 @@ def scan_itx(f, shop):
                 "lowest30": None,
                 "sizes": [str(s.get("name")) for s in sizes if s.get("isBuyable") and s.get("name")],
                 "best": p.get("id") in best_ids or is_best(p.get("tags")),
+                "available": p.get("isBuyable", True) is not False and any(s.get("isBuyable") for s in sizes),
             }
         log(f"    produkty: {min(k + 40, len(ids))}/{len(ids)}")
 
@@ -574,6 +580,7 @@ def scan_calz(f, shop, dept):
                 "current": num(sales.get("value")), "regular": num(lst.get("value")),
                 "lowest30": num((sales.get("oldPriceOmnibus") or {}).get("value")), "sizes": sizes,
                 "best": is_best({k: v for k, v in p.items() if k not in ("productName", "c_variationsFullData")}),
+                "available": not p.get("c_isSoldout") and not p.get("c_comingSoon"),
             }
         got += new
         log(f"    strona {page} – {got}/{total}")
@@ -636,11 +643,14 @@ def scan(cfg):
         if not shop.get("enabled", True):
             continue
         log(f"=== {shop['name']} ===")
-        count = 0
+        count, skipped = 0, [0]
 
         def add(p, label, best=False):
             nonlocal count
             if not p["url"] or not p["name"] or not p["current"] or not p["regular"]:
+                return
+            if p.pop("available", True) is False:      # wyprzedany – nie da się kupić
+                skipped[0] += 1
                 return
             p["best"] = bool(p.get("best") or best)
             if p["url"] in products:
@@ -666,7 +676,7 @@ def scan(cfg):
             except Exception as e:
                 log(f"    POMIJAM ({e})")
         per_shop[shop["name"]] = count
-        log(f"  {shop['name']}: {count} przecenionych produktów")
+        log(f"  {shop['name']}: {count} przecenionych produktów (pominięto niedostępnych: {skipped[0]})")
     return list(products.values()), per_shop
 
 
