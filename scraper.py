@@ -338,14 +338,16 @@ def section_label(path):
 BEST_CAT = re.compile(r"BEST[ _-]?SELLER", re.I)
 
 
-def best_categories(cats):
-    """Kategorie „Best sellers” sklepu (szukane po nazwie i kluczu)."""
+def find_categories(cats, match):
+    """Kategorie z drzewa sklepu spełniające `match(key, name)` – dobierane przy każdym skanie,
+    więc sezonowe wyprzedaże i nowe działy bestsellerów wchodzą automatycznie."""
     found, seen = [], set()
 
     def walk(items, path):
         for c in items or []:
             p = path + "/" + (c.get("name") or "")
-            if BEST_CAT.search(str(c.get("key") or "") + " " + (c.get("name") or "")) and not re.search(r"TEST", str(c.get("key") or "")):
+            key = str(c.get("key") or "")
+            if match(key, c.get("name") or "") and not re.search(r"TEST|GIFT", key, re.I):
                 cid = c.get("redirectCategoryId") or c.get("id")
                 if cid and cid not in seen:
                     seen.add(cid)
@@ -356,22 +358,11 @@ def best_categories(cats):
 
 
 def promo_categories(cats):
-    """Kategorie promocji/wyprzedaży z drzewa kategorii sklepu (dobierane przy każdym skanie,
-    więc sezonowe wyprzedaże wejdą automatycznie)."""
-    found, seen = [], set()
+    return find_categories(cats, lambda key, name: PROMO_KEY.search(key))
 
-    def walk(items, path):
-        for c in items or []:
-            p = path + "/" + (c.get("name") or "")
-            key = str(c.get("key") or "")
-            if PROMO_KEY.search(key) and not re.search(r"TEST|GIFT", key, re.I):
-                cid = c.get("redirectCategoryId") or c.get("id")
-                if cid and cid not in seen:
-                    seen.add(cid)
-                    found.append((cid, section_label(p), p))
-            walk(c.get("subcategories"), p)
-    walk(cats, "")
-    return found
+
+def best_categories(cats):
+    return find_categories(cats, lambda key, name: BEST_CAT.search(key + " " + name))
 
 
 def money(v):
@@ -737,7 +728,8 @@ def build_page(deals, per_shop):
     prev = load_json(DOCS / "deals.json", {}).get("deals", [])
     for shop, count in per_shop.items():
         if count == 0:
-            old = [dict(d, stale=True) for d in prev if d.get("shop") == shop]
+            # tylko jeden skan wstecz – inaczej zakończona wyprzedaż albo martwy sklep wisiałyby w nieskończoność
+            old = [dict(d, stale=True) for d in prev if d.get("shop") == shop and not d.get("stale")]
             if old:
                 log(f"  {shop}: brak nowych danych – zostawiam {len(old)} okazji z poprzedniego skanu")
                 deals = deals + old
