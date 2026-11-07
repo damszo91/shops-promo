@@ -24,11 +24,6 @@
           "label": "Dom",
           "path": "dom",
           "id": 26207
-        },
-        {
-          "label": "Uroda",
-          "path": "uroda",
-          "id": 81893
         }
       ],
       "group": "LPP"
@@ -198,7 +193,7 @@
       "api": "https://api-prod.esotiq.com/api/v1/esq-pl-pl/",
       "departments": [
         {
-          "label": "Wyprzedaż",
+          "label": "Kobieta",
           "id": 260
         }
       ]
@@ -267,8 +262,12 @@
       "site": "https://eobuwie.com.pl",
       "departments": [
         {
-          "label": "Wyprzedaż",
-          "path": "/c/eobuwie/akcja:new_sale_lp/omnibus_discount:~r-5-99"
+          "label": "Kobieta",
+          "path": "/c/damskie/akcja:new_sale_lp/omnibus_discount:~r-5-99"
+        },
+        {
+          "label": "Mężczyzna",
+          "path": "/c/meskie/akcja:new_sale_lp/omnibus_discount:~r-5-99"
         }
       ],
       "group": "CCC"
@@ -349,6 +348,7 @@
   "skip_departments": [
     "Chłopiec",
     "Dziecko",
-    "Dziewczynka"
+    "Dziewczynka",
+    "Uroda"
   ]
 }
