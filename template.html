@@ -68,6 +68,8 @@
   .t-new { background: var(--ok-soft); color: var(--ok); }
   .t-drop { background: var(--hot-soft); color: var(--hot); }
   .t-warn { background: var(--warn-soft); color: var(--warn); }
+  .t-code { background: #e7e3ff; color: #3a2aa8; }
+  @media (prefers-color-scheme: dark) { .t-code { background: #27214d; color: #b9adff; } }
   .t-best { background: #ffe9cc; color: #a34700; }
   @media (prefers-color-scheme: dark) { .t-best { background: #3d2610; color: #ffb366; } }
   .chip-best[aria-pressed=false] { border-color: #f0a050; }
@@ -222,6 +224,7 @@ function card(d) {
   const tags = [];
   if (d.stale) tags.push('<span class="tag t-warn" title="Sklep nie odpowiedział przy ostatnim skanie">dane z poprz. skanu</span>');
   if (isNew(d) && !d.stale) tags.push('<span class="tag t-new">NOWE</span>');
+  if (d.code) tags.push(`<span class="tag t-code" title="${esc(d.code_note || '')}">Kod: ${esc(d.code)}</span>`);
   if (d.best) tags.push('<span class="tag t-best" title="Sklep oznaczył ten produkt jako bestseller">🔥 Bestseller</span>');
   if (d.price_drop) tags.push('<span class="tag t-drop">↓ dalej tanieje</span>');
   if (d.was_cheaper) tags.push(`<span class="tag t-warn" title="Robot widział już niższą cenę">było ${zl(d.min_seen)}</span>`);
@@ -229,6 +232,7 @@ function card(d) {
     : base === 'low30'
       ? (d.lowest30 < d.regular - 0.01 ? `<div class="low30">Cena wyjściowa: ${zl(d.regular)} (−${d.discount}%)</div>` : '')
       : (d.lowest30 < d.regular - 0.01 ? `<div class="low30">Najniższa z 30 dni: ${zl(d.lowest30)} → realnie −${Math.max(0, d.real_discount30)}%</div>` : '');
+  const codeLine = d.code ? `<div class="low30">Cena po wpisaniu kodu w koszyku: ${esc(d.code_note || d.code)}</div>` : '';
   const sz = d.sizes && d.sizes.length && !(d.sizes.length === 1 && d.sizes[0] === 'Jeden rozmiar')
     ? `<div class="sizes">Rozmiary: ${d.sizes.map(esc).join(' · ')}</div>` : '';
   const f = favs.has(d.url);
@@ -242,6 +246,7 @@ function card(d) {
       <div class="shop">${esc(d.shop)}</div>
       <a class="name" href="${esc(d.url)}" target="_blank" rel="noopener">${esc(d.name)}</a>
       <div class="prices"><span class="now">${zl(d.current)}</span><span class="was" title="${base === 'low30' && has30(d) ? 'Najniższa cena z 30 dni' : 'Cena wyjściowa'}">${zl(base === 'low30' && has30(d) ? d.lowest30 : d.regular)}</span></div>
+      ${codeLine}
       ${low}
       ${sz}
       ${tags.length ? `<div class="tags">${tags.join('')}</div>` : ''}

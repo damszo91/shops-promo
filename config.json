@@ -21,11 +21,6 @@
           "id": 23741
         },
         {
-          "label": "Dziecko",
-          "path": "dziecko",
-          "id": 35895
-        },
-        {
           "label": "Dom",
           "path": "dom",
           "id": 26207
@@ -58,16 +53,6 @@
           "label": "Mężczyzna",
           "path": "mezczyzna",
           "id": 254
-        },
-        {
-          "label": "Dziewczynka",
-          "path": "dziewczynka",
-          "id": 4041
-        },
-        {
-          "label": "Chłopiec",
-          "path": "chlopiec",
-          "id": 4043
         }
       ]
     },
@@ -171,10 +156,6 @@
           "path": "/pl_pl/on/wyprzedaz/view-all.html"
         },
         {
-          "label": "Dziecko",
-          "path": "/pl_pl/dziecko/wyprzedaz/zobacz-wszystko.html"
-        },
-        {
           "label": "Dom",
           "path": "/pl_pl/dom/wyprzedaz/zobacz-wszystko.html"
         }
@@ -232,10 +213,6 @@
           "path": "/pl/m%C4%99%C5%BCczyzna/wyprzeda%C5%BC/"
         },
         {
-          "label": "Dziecko",
-          "path": "/pl/dzieci/wyprzeda%C5%BC/"
-        },
-        {
           "label": "Kobieta",
           "path": "/pl/kobieta/best_sellers/",
           "best": true
@@ -274,10 +251,6 @@
         {
           "label": "Mężczyzna",
           "path": "promo/wyprzedaz-sezonowa-mezczyzna"
-        },
-        {
-          "label": "Dziecko",
-          "path": "promo/wyprzedaz-sezonowa-dziecko"
         }
       ]
     },
@@ -304,10 +277,6 @@
         {
           "label": "Mężczyzna",
           "path": "/wyprzedaz/plec-meskie,unisex"
-        },
-        {
-          "label": "Dziecko",
-          "path": "/wyprzedaz/plec-dzieciece"
         }
       ]
     },
@@ -323,12 +292,53 @@
         {
           "label": "Mężczyzna",
           "path": "/wyprzedaz/plec-meskie"
+        }
+      ]
+    },
+    {
+      "name": "Deichmann",
+      "type": "deichmann",
+      "site": "https://www.deichmann.com",
+      "departments": [
+        {
+          "label": "Kobieta",
+          "path": "/pl-pl/c/damskie/outlet-damskie-2252",
+          "code": "OUTLET"
         },
         {
-          "label": "Dziecko",
-          "path": "/wyprzedaz/plec-dzieciece"
+          "label": "Mężczyzna",
+          "path": "/pl-pl/c/meskie/outlet-meskie-2253",
+          "code": "OUTLET"
+        },
+        {
+          "label": "Kobieta",
+          "path": "/pl-pl/c/damskie/wyprzedaz-567"
+        },
+        {
+          "label": "Mężczyzna",
+          "path": "/pl-pl/c/meskie/wyprzedaz-599"
+        }
+      ]
+    },
+    {
+      "name": "Zalando",
+      "type": "zalando",
+      "site": "https://www.zalando.pl",
+      "departments": [
+        {
+          "label": "Kobieta",
+          "path": "/kobiety-promocja/"
+        },
+        {
+          "label": "Mężczyzna",
+          "path": "/mezczyzni-promocja/"
         }
       ]
     }
+  ],
+  "skip_departments": [
+    "Chłopiec",
+    "Dziecko",
+    "Dziewczynka"
   ]
 }

@@ -331,6 +331,9 @@ SECTION_NAMES = {"KOBIETA": "Kobieta", "WOMAN": "Kobieta", "MĘŻCZYZNA": "Męż
 PROMO_KEY = re.compile(r"(?:^|[_-])(PROMO|PROMOS|PROMOCIONES|PVP_GENERAL|SPECIAL[_-]?PRICES|REBAJAS|SALE)(?:[_-]|$)", re.I)
 
 
+SKIP_DEPARTMENTS = set()   # ustawiane z config.json ("skip_departments")
+
+
 def section_label(path):
     top = path.strip("/").split("/")[0].strip().upper()
     return SECTION_NAMES.get(top, top.title() or "Inne")
@@ -348,7 +351,8 @@ def find_categories(cats, match):
         for c in items or []:
             p = path + "/" + (c.get("name") or "")
             key = str(c.get("key") or "")
-            if match(key, c.get("name") or "") and not re.search(r"TEST|GIFT", key, re.I):
+            if match(key, c.get("name") or "") and not re.search(r"TEST|GIFT", key, re.I) \
+                    and section_label(p) not in SKIP_DEPARTMENTS:
                 cid = c.get("redirectCategoryId") or c.get("id")
                 if cid and cid not in seen:
                     seen.add(cid)
@@ -753,9 +757,101 @@ def scan_50style(f, shop, dept):
             return
 
 
+# ---------------------------------------------------------------- Deichmann (karty produktów w HTML)
+
+def scan_deichmann(f, shop, dept):
+    import html as htmllib
+    seen, code, pct, note = set(), dept.get("code"), None, ""
+    for page in range(1, 81):
+        url = shop["site"] + dept["path"] + (f"?page={page}" if page > 1 else "")
+        page_html, _ = f.browser_get(url, warmup=shop["site"] + "/pl-pl/")
+        if code and pct is None:
+            # rabat z kodem odczytujemy z banera działu, np. „OUTLET -30% na ostatnie pary przy zakupach powyżej 120 zł Kod: OUTLET”
+            text = htmllib.unescape(re.sub(r"<[^>]+>", " ", page_html))
+            m = re.search(rf"{code}\s*-\s*(\d+)\s*%\s*([^%]{{0,90}}?)\s*Kod:\s*{code}", text)
+            pct, note = (int(m.group(1)), re.sub(r"\s+", " ", m.group(2)).strip()) if m else (0, "")
+            log(f"    kod {code}: {'-' + str(pct) + '% ' + note if pct else 'nie znaleziono wysokości rabatu – pomijam dział'}")
+            if not pct:
+                return
+        new = 0
+        for t in page_html.split("<deich-lib-product-tile")[1:]:
+            m = re.search(r'href="(/pl-pl/p/[^"]+)"', t)
+            if not m or m.group(1) in seen:
+                continue
+            seen.add(m.group(1))
+            new += 1
+            g = lambda rx: (re.search(rx, t, re.S) or [None, None])[1]
+            selling = num(g(r'data-id="selling-price"[^>]*>\s*([\d\s.,]+)'))
+            regular = num(g(r"Cena regularna:</span>\s*<span[^>]*>([^<]+)<")) or selling
+            brand, kind = g(r'class="brandname"[^>]*>([^<]+)<') or "", g(r'class="taglist"[^>]*>([^<]+)<') or ""
+            p = {
+                "url": shop["site"] + m.group(1),
+                "name": htmllib.unescape(f"{brand.strip()} {kind.strip()}").strip(),
+                "image": g(r'<img[^>]+src="(https://asset\.deichmann\.com[^"]+)"'),
+                "current": selling, "regular": regular,
+                "lowest30": num(g(r"Najniższa cena:</span>\s*<span[^>]*>([^<]+)<")), "sizes": [],
+                "best": is_best(" ".join(re.findall(r'data-testid="([^"]+)"', t))),
+            }
+            if code and selling:
+                p.update(current=round(selling * (1 - pct / 100), 2), code=code,
+                         code_note=f"−{pct}% z kodem {code}" + (f" ({note})" if note else ""))
+            yield p
+        log(f"    strona {page}: {len(seen)} produktów")
+        if not new:
+            return
+
+
+# ---------------------------------------------------------------- Zalando (dane produktów zapisane w stronie)
+
+def scan_zalando(f, shop, dept):
+    seen = set()
+    # shortcut: dział „Promocja” ma dziesiątki tysięcy produktów – bierzemy tylko N stron posortowanych
+    # od największego rabatu; zwiększ "max_pages" w config.json, jeśli chcesz więcej
+    for page in range(1, dept.get("max_pages", 25) + 1):
+        url = f"{shop['site']}{dept['path']}?order=sale" + (f"&p={page}" if page > 1 else "")
+        page_html, _ = f.browser_get(url, warmup=shop["site"] + "/")
+        m = re.search(r"window\.__hydrationDataConsume\((.*?)\);?</script>", page_html, re.S)
+        if not m:
+            raise RuntimeError("brak danych produktów na stronie")
+        prods = []
+
+        def walk(o):
+            if isinstance(o, dict):
+                if str(o.get("id", "")).startswith("ern:product::") and o.get("name") and o.get("displayPrice"):
+                    prods.append(o)
+                for v in o.values():
+                    walk(v)
+            elif isinstance(o, list):
+                for v in o:
+                    walk(v)
+        walk(json.loads(m.group(1)))
+        new = 0
+        for p in prods:
+            if p["id"] in seen:
+                continue
+            seen.add(p["id"])
+            new += 1
+            dp = p["displayPrice"]
+            texts = re.findall(r'"text":\s*"([^"]+)"', json.dumps(p.get("displayPriceModule"), ensure_ascii=False))
+            low = next((texts[i + 1] for i, t in enumerate(texts[:-1]) if "Najniższa cena" in t), None)
+            yield {
+                "url": p.get("uri"),
+                "name": f"{(p.get('brand') or {}).get('name', '')} {p.get('name', '')}".strip(),
+                "image": (p.get("mediumDefaultMedia") or {}).get("uri"),
+                "current": money((dp.get("promotional") or {}).get("amount") or (dp.get("original") or {}).get("amount")),
+                "regular": money((dp.get("original") or {}).get("amount")),
+                "lowest30": num(low), "sizes": [x.get("size") for x in p.get("simples") or [] if x.get("size")],
+                "best": any(fl.get("kind") == "BESTSELLER" for fl in p.get("productFlags") or []),
+            }
+        log(f"    strona {page}: {len(seen)} produktów")
+        if not new:
+            return
+
+
 SCANNERS = {"lpp": scan_lpp, "answear": scan_answear, "hm": scan_hm,
             "esotiq": scan_esotiq, "calz": scan_calz, "sfra": scan_sfra,
-            "ccc": scan_ccc, "eobuwie": scan_eobuwie, "sizeer": scan_sizeer, "50style": scan_50style}
+            "ccc": scan_ccc, "eobuwie": scan_eobuwie, "sizeer": scan_sizeer, "50style": scan_50style,
+            "deichmann": scan_deichmann, "zalando": scan_zalando}
 # sklepy, w których robot sam znajduje działy promocji
 SHOP_SCANNERS = {"zara": scan_zara, "itx": scan_itx}
 
@@ -884,6 +980,7 @@ def main():
     ap.add_argument("--debug", action="store_true", help="(zostawione dla zgodności, nic nie robi)")
     args = ap.parse_args()
     cfg = json.loads(Path(args.config).read_text(encoding="utf-8"))
+    SKIP_DEPARTMENTS.update(cfg.get("skip_departments", []))
 
     products, per_shop = scan(cfg)
     log("Podsumowanie: " + ", ".join(f"{k}: {v}" for k, v in per_shop.items()))
