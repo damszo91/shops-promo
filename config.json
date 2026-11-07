@@ -35,7 +35,8 @@
           "path": "uroda",
           "id": 81893
         }
-      ]
+      ],
+      "group": "LPP"
     },
     {
       "name": "Reserved",
@@ -54,7 +55,8 @@
           "path": "mezczyzna",
           "id": 254
         }
-      ]
+      ],
+      "group": "LPP"
     },
     {
       "name": "House",
@@ -73,7 +75,8 @@
           "path": "mezczyzna",
           "id": 2871
         }
-      ]
+      ],
+      "group": "LPP"
     },
     {
       "name": "Cropp",
@@ -92,7 +95,8 @@
           "path": "mezczyzna",
           "id": 2479
         }
-      ]
+      ],
+      "group": "LPP"
     },
     {
       "name": "Mohito",
@@ -106,7 +110,8 @@
           "path": "ubrania",
           "id": 1725
         }
-      ]
+      ],
+      "group": "LPP"
     },
     {
       "name": "Medicine",
@@ -164,28 +169,32 @@
     {
       "name": "Zara",
       "type": "zara",
-      "site": "https://www.zara.com"
+      "site": "https://www.zara.com",
+      "group": "Inditex"
     },
     {
       "name": "Bershka",
       "type": "itx",
       "site": "https://www.bershka.com",
       "store_id": 45109524,
-      "catalog_id": 40259532
+      "catalog_id": 40259532,
+      "group": "Inditex"
     },
     {
       "name": "Pull&Bear",
       "type": "itx",
       "site": "https://www.pullandbear.com",
       "store_id": 25009524,
-      "catalog_id": 20309459
+      "catalog_id": 20309459,
+      "group": "Inditex"
     },
     {
       "name": "Stradivarius",
       "type": "itx",
       "site": "https://www.stradivarius.com",
       "store_id": 54009574,
-      "catalog_id": 50331065
+      "catalog_id": 50331065,
+      "group": "Inditex"
     },
     {
       "name": "Esotiq",
@@ -222,7 +231,8 @@
           "path": "/pl/m%C4%99%C5%BCczyzna/best_sellers/",
           "best": true
         }
-      ]
+      ],
+      "group": "Calzedonia"
     },
     {
       "name": "Intimissimi",
@@ -237,7 +247,8 @@
           "label": "Mężczyzna",
           "path": "/pl/m%C4%99%C5%BCczyzna/wyprzeda%C5%BC/"
         }
-      ]
+      ],
+      "group": "Calzedonia"
     },
     {
       "name": "CCC",
@@ -252,7 +263,8 @@
           "label": "Mężczyzna",
           "path": "promo/wyprzedaz-sezonowa-mezczyzna"
         }
-      ]
+      ],
+      "group": "CCC"
     },
     {
       "name": "eobuwie",
@@ -263,7 +275,8 @@
           "label": "Wyprzedaż",
           "path": "/c/eobuwie/akcja:new_sale_lp/omnibus_discount:~r-5-99"
         }
-      ]
+      ],
+      "group": "CCC"
     },
     {
       "name": "Sizeer",
@@ -278,7 +291,8 @@
           "label": "Mężczyzna",
           "path": "/wyprzedaz/plec-meskie,unisex"
         }
-      ]
+      ],
+      "group": "Sizeer"
     },
     {
       "name": "50style",
@@ -293,7 +307,8 @@
           "label": "Mężczyzna",
           "path": "/wyprzedaz/plec-meskie"
         }
-      ]
+      ],
+      "group": "Sizeer"
     },
     {
       "name": "Deichmann",

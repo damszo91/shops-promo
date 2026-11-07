@@ -1,3 +1,2 @@
-# Biblioteki dla robota. playwright zostawiony dla zgodnosci ze starszym plikiem .github/workflows/skan.yml
+# Biblioteka dla robota (polaczenie "jak przegladarka" dla sklepow z ochrona przed botami)
 curl_cffi
-playwright>=1.48

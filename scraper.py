@@ -39,7 +39,11 @@ UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
 
 
 def log(*a):
-    print(datetime.now().strftime("%H:%M:%S"), *a, flush=True)
+    import threading
+    name = threading.current_thread().name
+    prefix = [f"[{name}]"] if not name.startswith(("Main", "Thread")) else []
+    # jeden napis naraz – przy równoległych wątkach linie logu się nie przeplatają
+    print(" ".join(map(str, [datetime.now().strftime("%H:%M:%S"), *prefix, *a])), flush=True)
 
 
 class Fetch:
@@ -81,6 +85,10 @@ class Fetch:
             except Exception as e:
                 last = str(e)
             time.sleep(4 * (i + 1))
+        if last in ("HTTP 403", "HTTP 407"):
+            # część sklepów (np. CCC) odrzuca połączenie „jak Chrome”, a zwykłe przepuszcza
+            log(f"    {last} – próbuję zwykłego połączenia")
+            return self.get(url, referer=warmup, headers=headers, tries=1)
         raise RuntimeError(last)
 
     def get(self, url, referer=None, as_json=False, tries=3, headers=None):
@@ -856,47 +864,71 @@ SCANNERS = {"lpp": scan_lpp, "answear": scan_answear, "hm": scan_hm,
 SHOP_SCANNERS = {"zara": scan_zara, "itx": scan_itx}
 
 
+def scan_shop(f, shop):
+    """Skanuje jeden sklep; zwraca (produkty, liczba)."""
+    products, skipped = {}, 0
+
+    def add(p, label, best=False):
+        nonlocal skipped
+        if not p["url"] or not p["name"] or not p["current"] or not p["regular"]:
+            return
+        if p.pop("available", True) is False:      # wyprzedany – nie da się kupić
+            skipped += 1
+            return
+        p["best"] = bool(p.get("best") or best)
+        if p["url"] in products:
+            products[p["url"]]["best"] = products[p["url"]].get("best") or p["best"]
+            return
+        p.update(shop=shop["name"], category=label,
+                 current=round(p["current"], 2), regular=round(p["regular"], 2),
+                 sizes=list(dict.fromkeys(str(x) for x in p.get("sizes") or []))[:14])
+        products[p["url"]] = p
+
+    if shop["type"] in SHOP_SCANNERS:
+        try:
+            for label, p in SHOP_SCANNERS[shop["type"]](f, shop):
+                add(p, label)
+        except Exception as e:
+            log(f"  POMIJAM ({e})")
+    for dept in shop.get("departments", []):
+        log(f"  {dept['label']}")
+        try:
+            for p in SCANNERS[shop["type"]](f, shop, dept):
+                add(p, dept["label"], best=dept.get("best", False))
+        except Exception as e:
+            log(f"    POMIJAM ({e})")
+    log(f"  {shop['name']}: {len(products)} przecenionych produktów (pominięto niedostępnych: {skipped})")
+    return products
+
+
 def scan(cfg):
+    from concurrent.futures import ThreadPoolExecutor
     f = Fetch(cfg["delay_seconds"])
+    shops = [s for s in cfg["shops"] if s.get("enabled", True)]
+    # różne firmy skanowane równolegle – przy 20 sklepach skan po kolei trwał ok. 17 minut
+    # sklepy jednej firmy ("group" w config.json) mają wspólne serwery – skanujemy je po kolei w jednym wątku,
+    # więc żadna firma nie dostaje więcej zapytań naraz niż przy skanowaniu po kolei
+    groups = {}
+    for shop in shops:
+        groups.setdefault(shop.get("group", shop["name"]), []).append(shop)
+
+    def run(group):
+        import threading
+        out = {}
+        for shop in group:
+            threading.current_thread().name = shop["name"]
+            out[shop["name"]] = scan_shop(f, shop)
+        return out
+    with ThreadPoolExecutor(max_workers=cfg.get("parallel_shops", 6)) as pool:
+        results = {}
+        for r in pool.map(run, groups.values()):
+            results.update(r)
     products, per_shop = {}, {}
-    for shop in cfg["shops"]:
-        if not shop.get("enabled", True):
-            continue
-        log(f"=== {shop['name']} ===")
-        count, skipped = 0, [0]
-
-        def add(p, label, best=False):
-            nonlocal count
-            if not p["url"] or not p["name"] or not p["current"] or not p["regular"]:
-                return
-            if p.pop("available", True) is False:      # wyprzedany – nie da się kupić
-                skipped[0] += 1
-                return
-            p["best"] = bool(p.get("best") or best)
-            if p["url"] in products:
-                products[p["url"]]["best"] = products[p["url"]].get("best") or p["best"]
-                return
-            p.update(shop=shop["name"], category=label,
-                     current=round(p["current"], 2), regular=round(p["regular"], 2),
-                     sizes=list(dict.fromkeys(str(x) for x in p.get("sizes") or []))[:14])
-            products[p["url"]] = p
-            count += 1
-
-        if shop["type"] in SHOP_SCANNERS:
-            try:
-                for label, p in SHOP_SCANNERS[shop["type"]](f, shop):
-                    add(p, label)
-            except Exception as e:
-                log(f"  POMIJAM ({e})")
-        for dept in shop.get("departments", []):
-            log(f"  {dept['label']}")
-            try:
-                for p in SCANNERS[shop["type"]](f, shop, dept):
-                    add(p, dept["label"], best=dept.get("best", False))
-            except Exception as e:
-                log(f"    POMIJAM ({e})")
-        per_shop[shop["name"]] = count
-        log(f"  {shop['name']}: {count} przecenionych produktów (pominięto niedostępnych: {skipped[0]})")
+    for shop in shops:
+        res = results.get(shop["name"], {})
+        per_shop[shop["name"]] = len(res)
+        for url, p in res.items():
+            products.setdefault(url, p)
     return list(products.values()), per_shop
 
 
