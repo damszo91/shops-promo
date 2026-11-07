@@ -136,6 +136,10 @@ def num(v):
         return None
 
 
+SHOE_RE = re.compile(r"\b(buty|but|obuwie|sneaker\w*|trampk\w*|tenisówk\w*|botk\w*|botek|kozak\w*|kozaczk\w*|"
+                     r"półbut\w*|sandał\w*|sandałk\w*|klapk\w*|japonk\w*|kapc\w*|czółenk\w*|szpilk\w*|mokasyn\w*|"
+                     r"baleri\w*|śniegow\w*|lords\w*|loafers\w*|espadryl\w*|oficerk\w*|sztyblet\w*|kalosz\w*|"
+                     r"chodak\w*|trapery|glany|derby|oxfordy|slip-?on\w*|muły|shoes?|sneakers?|boots?|sandals?)\b", re.I)
 BEST_RE = re.compile(r"best\s*-?\s*seller|top\s*seller|hit\s+sprzeda", re.I)
 
 
@@ -656,6 +660,7 @@ def scan_ccc(f, shop, dept):
                 "regular": num(pr.get("price")),
                 "lowest30": num((pr.get("omnibusPrice") or {}).get("price")), "sizes": [],
                 "best": is_best([x.get("label") for x in p.get("stickers") or []]),
+                "cat": " ".join(str(v) for v in (p.get("categoryTree") or {}).values() if v),
             }
         pages = int(d.get("pagesQuantity") or 1)
         log(f"    strona {page}/{pages} ({d.get('productsQuantity')} produktów)")
@@ -728,6 +733,7 @@ def scan_sizeer(f, shop, dept):
                 "current": current, "regular": num(olds[0]) if olds else current,
                 "lowest30": num(low.group(1)) if low else None, "sizes": [],
                 "best": is_best(" ".join(re.findall(r'class="emblem-content"[^>]*><p>([^<]+)<', t))),
+                "cat": attr("category"),
             }
         log(f"    strona {page}: {len(seen)} produktów")
         if not new:
@@ -759,6 +765,7 @@ def scan_50style(f, shop, dept):
                 "regular": num(g(r'item-price-old"[^>]*>\s*([\d\s.,]+)zł')) or current,
                 "lowest30": num(g(r'item-price-omnibus">\s*<span>([^<]+)<')), "sizes": [],
                 "best": is_best(" ".join(re.findall(r"<p><b>([^<]+)</b></p>", t))),
+                "cat": " ".join(re.findall(r'data-(?:ga-)?category="([^"]*)"', t)),
             }
         log(f"    strona {page}: {len(seen)} produktów")
         if not new:      # 50style po ostatniej stronie zwraca ją ponownie
@@ -850,6 +857,7 @@ def scan_zalando(f, shop, dept):
                 "regular": money((dp.get("original") or {}).get("amount")),
                 "lowest30": num(low), "sizes": [x.get("size") for x in p.get("simples") or [] if x.get("size")],
                 "best": any(fl.get("kind") == "BESTSELLER" for fl in p.get("productFlags") or []),
+                "cat": "shoes" if re.search(r"SHOE|SNEAKER|BOOT|SANDAL|SLIPPER|PUMP|BALLERINA|LOAFER", p.get("silhouette") or "") else "",
             }
         log(f"    strona {page}: {len(seen)} produktów")
         if not new:
@@ -876,6 +884,7 @@ def scan_shop(f, shop):
             skipped += 1
             return
         p["best"] = bool(p.get("best") or best)
+        p["shoes"] = bool(SHOE_RE.search(f"{p['name']} {p.pop('cat', '')} {label}"))
         if p["url"] in products:
             products[p["url"]]["best"] = products[p["url"]].get("best") or p["best"]
             return
