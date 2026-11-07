@@ -138,7 +138,7 @@ def num(v):
 
 KIDS_RE = re.compile(r"\b(dziec\w*|dla dzieci|niemowl\w*|chłopi\w*|dziewczyn\w*|junior\w*|kids?|baby|toddler|"
                      r"paw patrol|psi patrol)\b", re.I)
-SHOE_RE = re.compile(r"\b(buty|but|obuwie|sneaker\w*|trampk\w*|tenisówk\w*|botk\w*|botek|kozak\w*|kozaczk\w*|"
+SHOE_RE = re.compile(r"\b(buty|obuwie|sneaker\w*|trampk\w*|tenisówk\w*|botk\w*|botek|kozak\w*|kozaczk\w*|"
                      r"półbut\w*|sandał\w*|sandałk\w*|klapk\w*|japonk\w*|kapc\w*|czółenk\w*|szpilk\w*|mokasyn\w*|"
                      r"baleri\w*|śniegow\w*|lords\w*|loafers\w*|espadryl\w*|oficerk\w*|sztyblet\w*|kalosz\w*|"
                      r"chodak\w*|trapery|glany|derby|oxfordy|slip-?on\w*|muły|shoes?|sneakers?|boots?|sandals?)\b", re.I)
