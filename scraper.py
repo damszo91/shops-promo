@@ -136,6 +136,8 @@ def num(v):
         return None
 
 
+KIDS_RE = re.compile(r"\b(dziec\w*|dla dzieci|niemowl\w*|chłopi\w*|dziewczyn\w*|junior\w*|kids?|baby|toddler|"
+                     r"paw patrol|psi patrol)\b", re.I)
 SHOE_RE = re.compile(r"\b(buty|but|obuwie|sneaker\w*|trampk\w*|tenisówk\w*|botk\w*|botek|kozak\w*|kozaczk\w*|"
                      r"półbut\w*|sandał\w*|sandałk\w*|klapk\w*|japonk\w*|kapc\w*|czółenk\w*|szpilk\w*|mokasyn\w*|"
                      r"baleri\w*|śniegow\w*|lords\w*|loafers\w*|espadryl\w*|oficerk\w*|sztyblet\w*|kalosz\w*|"
@@ -884,7 +886,10 @@ def scan_shop(f, shop):
             skipped += 1
             return
         p["best"] = bool(p.get("best") or best)
-        p["shoes"] = bool(SHOE_RE.search(f"{p['name']} {p.pop('cat', '')} {label}"))
+        cat = p.pop("cat", "")
+        if KIDS_RE.search(f"{p['name']} {cat}"):   # produkty dziecięce z działów mieszanych (działy dziecięce są wyłączone)
+            return
+        p["shoes"] = bool(SHOE_RE.search(f"{p['name']} {cat} {label}"))
         if p["url"] in products:
             products[p["url"]]["best"] = products[p["url"]].get("best") or p["best"]
             return
