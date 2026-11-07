@@ -49,14 +49,14 @@ class Fetch:
         self.delay = delay
         self.sessions = {}
 
-    def browser_get(self, url, warmup=None, tries=2):
+    def browser_get(self, url, warmup=None, tries=2, headers=None):
         """Połączenie „jak przeglądarka Chrome” (biblioteka curl_cffi) – dla sklepów z ochroną przed botami.
         Bez curl_cffi używa zwykłego pobierania."""
         try:
             from curl_cffi import requests as creq
         except ImportError:
             log("    (brak biblioteki curl_cffi – używam zwykłego połączenia)")
-            return self.get(url, referer=warmup)
+            return self.get(url, referer=warmup, headers=headers)
         host = urllib.parse.urlparse(url).netloc
         s = self.sessions.get(host)
         if s is None:
@@ -71,7 +71,7 @@ class Fetch:
         for i in range(tries):
             try:
                 r = s.get(url, timeout=45, headers={"Accept-Language": "pl-PL,pl;q=0.9",
-                                                    **({"Referer": warmup} if warmup else {})})
+                                                    **({"Referer": warmup} if warmup else {}), **(headers or {})})
                 if r.status_code == 200:
                     time.sleep(self.delay)
                     return r.text, str(r.url)
@@ -83,13 +83,14 @@ class Fetch:
             time.sleep(4 * (i + 1))
         raise RuntimeError(last)
 
-    def get(self, url, referer=None, as_json=False, tries=3):
-        headers = {
+    def get(self, url, referer=None, as_json=False, tries=3, headers=None):
+        extra, headers = headers, {
             "User-Agent": UA,
             "Accept": "application/json, text/plain, */*" if as_json
             else "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
             "Accept-Language": "pl-PL,pl;q=0.9,en;q=0.5",
         }
+        headers.update(extra or {})
         if referer:
             headers["Referer"] = referer
             headers["Origin"] = "{0.scheme}://{0.netloc}".format(urllib.parse.urlparse(referer))
@@ -621,8 +622,140 @@ def scan_sfra(f, shop, dept):
         start += 200
 
 
+# ---------------------------------------------------------------- CCC
+
+def scan_ccc(f, shop, dept):
+    fa = urllib.parse.quote('{"filterAttributeOptions":[]}')
+    # nagłówki, które dokłada strona CCC do każdego zapytania (bez nich API odpowiada 400)
+    headers = {"x-api-version": "4.0", "x-frontend-id": "44", "x-source-name": "WWW"}
+    page = 1
+    while True:
+        url = (f"{shop['site']}/pl/api/Product/GetVirtualListing?page={page}&filterAttributes={fa}"
+               f"&listingUrl={dept['path']}&pageSize=200&language=pl_PL&clientUuid=00000000-0000-0000-0000-000000000000")
+        text, _ = f.browser_get(url, warmup=shop["site"] + "/pl/pl/", headers=headers)
+        d = json.loads(text).get("data") or {}
+        for p in d.get("products") or []:
+            pr = p.get("price") or {}
+            yield {
+                "url": f"{shop['site']}/pl/pl/p/{p.get('slug')}",
+                "name": f"{p.get('trademark') or ''} {p.get('name') or ''}".strip(),
+                "image": (p.get("photos") or [None])[0],
+                "current": num(pr.get("priceWithDiscount")) or num(pr.get("price")),
+                "regular": num(pr.get("price")),
+                "lowest30": num((pr.get("omnibusPrice") or {}).get("price")), "sizes": [],
+                "best": is_best([x.get("label") for x in p.get("stickers") or []]),
+            }
+        pages = int(d.get("pagesQuantity") or 1)
+        log(f"    strona {page}/{pages} ({d.get('productsQuantity')} produktów)")
+        if page >= pages or page >= 50:
+            return
+        page += 1
+
+
+# ---------------------------------------------------------------- eobuwie (karty produktów w HTML)
+
+def scan_eobuwie(f, shop, dept):
+    import html as htmllib
+    seen = set()
+    for page in range(1, 81):
+        url = shop["site"] + dept["path"] + (f"?p={page}" if page > 1 else "")
+        page_html, _ = f.browser_get(url, warmup=shop["site"] + "/")
+        new = 0
+        for t in page_html.split("data-product-card=")[1:]:
+            m = re.search(r'href="(/p/[^"]+)"', t)
+            if not m or m.group(1) in seen:
+                continue
+            seen.add(m.group(1))
+            new += 1
+            g = lambda rx: (re.search(rx, t, re.S) or [None, None])[1]
+            current = num(g(r"Aktualna cena\s*</span>.*?<span>\s*([\d\s.,]+)\s*</span>"))
+            title, desc = g(r'class="title"[^>]*>([^<]+)<') or "", g(r'class="description"[^>]*>([^<]+)<') or ""
+            yield {
+                "url": shop["site"] + m.group(1),
+                "name": htmllib.unescape(f"{title.strip()} {desc.strip()}").strip(),
+                "image": htmllib.unescape(g(r'<img[^>]+src="([^"]+)"') or "") or None,
+                "current": current,
+                "regular": num(g(r"Cena regularna\s*<span[^>]*>\s*<span[^>]*>([^<]+)<")) or current,
+                "lowest30": num(g(r"Najniższa cena\s*<span[^>]*>\s*<span[^>]*>([^<]+)<")), "sizes": [],
+                "best": is_best(" ".join(re.findall(r'class="badge-content"[^>]*>([^<]+)<', t))),
+            }
+        log(f"    strona {page}: {len(seen)} produktów")
+        if not new:
+            return
+
+
+# ---------------------------------------------------------------- Sizeer (karty produktów w HTML)
+
+def scan_sizeer(f, shop, dept):
+    import html as htmllib
+    seen = set()
+    for page in range(1, 81):
+        url = shop["site"] + dept["path"] + (f"?page={page}" if page > 1 else "")
+        page_html, _ = f.browser_get(url, warmup=shop["site"] + "/")
+        # zdjęcia są w zakodowanych danych strony: link produktu → pierwszy plik galerii
+        gallery = dict(re.findall(r'"link":"(/[^"]+)","gallery":\["([^"]+)"', urllib.parse.unquote(page_html)))
+        new = 0
+        for t in page_html.split('data-offer-id="')[1:]:
+            m = re.search(r'href="(/[^"#?]+)" class="title', t)
+            if not m or m.group(1) in seen:
+                continue
+            href = m.group(1)
+            seen.add(href)
+            new += 1
+            offer = t.split('"', 1)[0]
+            attr = lambda k: htmllib.unescape((re.search(rf'data-{k}="([^"]*)"', t) or [None, ""])[1])
+            omni = t.find('class="omnibus-price"')
+            olds = re.findall(r'class="old-price is-line-through"[^>]*>\s*([\d\s.,]+)zł', t[:omni] if omni > 0 else t)
+            low = re.search(r'class="omnibus-price".*?is-line-through"[^>]*>\s*([\d\s.,]+)zł', t, re.S)
+            current = num(attr("price"))
+            yield {
+                "url": shop["site"] + href,
+                "name": attr("name") if attr("brand").upper() in attr("name").upper() else f"{attr('brand')} {attr('name')}".strip(),
+                "image": (f"{shop['site']}/api/images/offer-{offer}/seo/gallery_455_455/thumbnails/{gallery[href]}"
+                          if href in gallery else None),
+                "current": current, "regular": num(olds[0]) if olds else current,
+                "lowest30": num(low.group(1)) if low else None, "sizes": [],
+                "best": is_best(" ".join(re.findall(r'class="emblem-content"[^>]*><p>([^<]+)<', t))),
+            }
+        log(f"    strona {page}: {len(seen)} produktów")
+        if not new:
+            return
+
+
+# ---------------------------------------------------------------- 50style (karty produktów w HTML)
+
+def scan_50style(f, shop, dept):
+    import html as htmllib
+    seen = set()
+    for page in range(1, 81):
+        url = shop["site"] + dept["path"] + (f"?page={page}" if page > 1 else "")
+        page_html, _ = f.browser_get(url, warmup=shop["site"] + "/")
+        new = 0
+        for t in page_html.split('js-offerItem"')[1:]:
+            m = re.search(r'class="item-name" href="([^"]+)"', t)
+            if not m or m.group(1) in seen:
+                continue
+            seen.add(m.group(1))
+            new += 1
+            g = lambda rx: (re.search(rx, t, re.S) or [None, None])[1]
+            current = num(g(r'item-main-price"[^>]*>\s*([\d\s.,]+)zł'))
+            yield {
+                "url": shop["site"] + m.group(1),
+                "name": htmllib.unescape((g(r'data-name="([^"]*)"') or "").strip()),
+                "image": g(r'data-src="([^"]+)"'),
+                "current": current,
+                "regular": num(g(r'item-price-old"[^>]*>\s*([\d\s.,]+)zł')) or current,
+                "lowest30": num(g(r'item-price-omnibus">\s*<span>([^<]+)<')), "sizes": [],
+                "best": is_best(" ".join(re.findall(r"<p><b>([^<]+)</b></p>", t))),
+            }
+        log(f"    strona {page}: {len(seen)} produktów")
+        if not new:      # 50style po ostatniej stronie zwraca ją ponownie
+            return
+
+
 SCANNERS = {"lpp": scan_lpp, "answear": scan_answear, "hm": scan_hm,
-            "esotiq": scan_esotiq, "calz": scan_calz, "sfra": scan_sfra}
+            "esotiq": scan_esotiq, "calz": scan_calz, "sfra": scan_sfra,
+            "ccc": scan_ccc, "eobuwie": scan_eobuwie, "sizeer": scan_sizeer, "50style": scan_50style}
 # sklepy, w których robot sam znajduje działy promocji
 SHOP_SCANNERS = {"zara": scan_zara, "itx": scan_itx}
 

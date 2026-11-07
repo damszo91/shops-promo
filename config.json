@@ -261,6 +261,74 @@
           "path": "/pl/m%C4%99%C5%BCczyzna/wyprzeda%C5%BC/"
         }
       ]
+    },
+    {
+      "name": "CCC",
+      "type": "ccc",
+      "site": "https://ccc.eu",
+      "departments": [
+        {
+          "label": "Kobieta",
+          "path": "promo/wyprzedaz-sezonowa-kobieta"
+        },
+        {
+          "label": "Mężczyzna",
+          "path": "promo/wyprzedaz-sezonowa-mezczyzna"
+        },
+        {
+          "label": "Dziecko",
+          "path": "promo/wyprzedaz-sezonowa-dziecko"
+        }
+      ]
+    },
+    {
+      "name": "eobuwie",
+      "type": "eobuwie",
+      "site": "https://eobuwie.com.pl",
+      "departments": [
+        {
+          "label": "Wyprzedaż",
+          "path": "/c/eobuwie/akcja:new_sale_lp/omnibus_discount:~r-5-99"
+        }
+      ]
+    },
+    {
+      "name": "Sizeer",
+      "type": "sizeer",
+      "site": "https://sklep.sizeer.com",
+      "departments": [
+        {
+          "label": "Kobieta",
+          "path": "/wyprzedaz/plec-damskie,unisex"
+        },
+        {
+          "label": "Mężczyzna",
+          "path": "/wyprzedaz/plec-meskie,unisex"
+        },
+        {
+          "label": "Dziecko",
+          "path": "/wyprzedaz/plec-dzieciece"
+        }
+      ]
+    },
+    {
+      "name": "50style",
+      "type": "50style",
+      "site": "https://50style.pl",
+      "departments": [
+        {
+          "label": "Kobieta",
+          "path": "/wyprzedaz/plec-damskie"
+        },
+        {
+          "label": "Mężczyzna",
+          "path": "/wyprzedaz/plec-meskie"
+        },
+        {
+          "label": "Dziecko",
+          "path": "/wyprzedaz/plec-dzieciece"
+        }
+      ]
     }
   ]
 }
