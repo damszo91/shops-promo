@@ -1,49 +1,38 @@
-name: Shops Promo - skan
+   name: Shops Promo - skan
 
-on:
-  schedule:
-    - cron: "7 6,18 * * *"
-  workflow_dispatch: {}
+   on:
+     schedule:
+       - cron: "7 6,18 * * *"
+     workflow_dispatch: {}
 
-permissions:
-  contents: write
+   permissions:
+     contents: write
 
-concurrency:
-  group: skan
-  cancel-in-progress: false
+   concurrency:
+     group: skan
+     cancel-in-progress: false
 
-jobs:
-  skan:
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v4
+   jobs:
+     skan:
+       runs-on: ubuntu-latest
+       timeout-minutes: 45
+       steps:
+         - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
+         - uses: actions/setup-python@v5
+           with:
+             python-version: "3.12"
 
-      - name: Instalacja
-        run: |
-          pip install -r requirements.txt
-          python -m playwright install --with-deps chromium
+         - name: Instalacja
+           run: pip install curl_cffi
 
-      - name: Skanowanie Sinsay
-        run: python scraper.py --debug
+         - name: Skanowanie sklepów
+           run: python scraper.py
 
-      - name: Zrzuty ekranu do diagnozy
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: debug
-          path: debug/
-          if-no-files-found: ignore
-          retention-days: 5
-
-      - name: Zapis wyników
-        run: |
-          git config user.name "robot-okazji"
-          git config user.email "robot-okazji@users.noreply.github.com"
-          git add docs data
-          git diff --cached --quiet || git commit -m "Aktualizacja okazji $(date -u +'%Y-%m-%d %H:%M')"
-          git push
+         - name: Zapis wyników
+           run: |
+             git config user.name "robot-okazji"
+             git config user.email "robot-okazji@users.noreply.github.com"
+             git add docs data
+             git diff --cached --quiet || git commit -m "Aktualizacja okazji $(date -u +'%Y-%m-%d %H:%M')"
+             git push
