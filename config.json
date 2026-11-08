@@ -151,6 +151,14 @@
           "path": "/pl_pl/on/wyprzedaz/view-all.html"
         },
         {
+          "label": "Kobieta",
+          "path": "/pl_pl/ona/ostatnia-szansa/zobacz-wszystko.html"
+        },
+        {
+          "label": "Mężczyzna",
+          "path": "/pl_pl/on/last-chance/zobacz-wszystko.html"
+        },
+        {
           "label": "Dom",
           "path": "/pl_pl/dom/wyprzedaz/zobacz-wszystko.html"
         }

@@ -86,7 +86,7 @@ class Fetch:
             except Exception as e:
                 last = str(e)
             time.sleep(4 * (i + 1))
-        if last in ("HTTP 403", "HTTP 407"):
+        if last in ("HTTP 403", "HTTP 404", "HTTP 407"):
             # część sklepów (np. CCC) odrzuca połączenie „jak Chrome”, a zwykłe przepuszcza
             log(f"    {last} – próbuję zwykłego połączenia")
             return self.get(url, referer=warmup, headers=headers, tries=1)
@@ -331,6 +331,7 @@ def scan_hm(f, shop, dept):
                 "current": current, "regular": regular,
                 "lowest30": num(p.get("priorPrice")), "sizes": [],
                 "best": is_best(p.get("marketingMarkerText") or "") or is_best(p.get("promotionalMarkerText") or ""),
+                "cat": (p.get("category") or "").replace("_", " "),   # np. „men shoes sneakers” → trafia do Butów
             }
         total = int(d.get("totalHits") or 0)
         pages = int(d.get("totalPages") or 0)
@@ -683,7 +684,12 @@ def scan_eobuwie(f, shop, dept):
     seen = set()
     for page in range(1, 81):
         url = shop["site"] + dept["path"] + (f"?p={page}" if page > 1 else "")
-        page_html, _ = f.browser_get(url, warmup=shop["site"] + "/")
+        try:
+            page_html, _ = f.browser_get(url, warmup=shop["site"] + "/")
+        except Exception as e:
+            if page > 1 and "404" in str(e):   # za ostatnią stroną eobuwie odpowiada „404”
+                return
+            raise
         new = 0
         for t in page_html.split("data-product-card=")[1:]:
             m = re.search(r'href="(/p/[^"]+)"', t)
