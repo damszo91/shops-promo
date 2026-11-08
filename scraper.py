@@ -1080,7 +1080,9 @@ def scan_shop(f, shop):
 def scan(cfg):
     from concurrent.futures import ThreadPoolExecutor
     f = Fetch(cfg["delay_seconds"])
-    shops = [s for s in cfg["shops"] if s.get("enabled", True)]
+    # sklepy z "local": true w config.json skanuje się tylko z domowego komputera (python scraper.py --local),
+    # bo blokują serwery GitHuba; zwykły skan je pomija i zostawia ich ostatnie wyniki
+    shops = [s for s in cfg["shops"] if s.get("enabled", True) and bool(s.get("local")) == cfg.get("_local", False)]
     # różne firmy skanowane równolegle – przy 20 sklepach skan po kolei trwał ok. 17 minut
     # sklepy jednej firmy ("group" w config.json) mają wspólne serwery – skanujemy je po kolei w jednym wątku,
     # więc żadna firma nie dostaje więcej zapytań naraz niż przy skanowaniu po kolei
@@ -1123,7 +1125,8 @@ def update_history(products, cfg):
     now = datetime.now(timezone.utc)
     now_s = now.isoformat(timespec="seconds")
     cutoff = (now - timedelta(days=cfg["history_days"])).isoformat()
-    last_scan = hist.get("_last_scan")
+    key = "_last_scan_local" if cfg.get("_local") else "_last_scan"   # osobno dla skanu z GitHuba i z komputera
+    last_scan = hist.get(key)
 
     deals = []
     for p in products:
@@ -1151,9 +1154,9 @@ def update_history(products, cfg):
             prev.append([now_s, p["current"], p["regular"]])
         h["p"], h["ls"] = prev, now_s
 
-    hist["_last_scan"] = now_s
+    hist[key] = now_s
     hist = {k: v for k, v in hist.items()
-            if k == "_last_scan" or (isinstance(v, dict) and v.get("ls", "") >= cutoff)}
+            if k.startswith("_last_scan") or (isinstance(v, dict) and v.get("ls", "") >= cutoff)}
     DATA.mkdir(exist_ok=True)
     hist_path.write_text(json.dumps(hist, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     return deals
@@ -1162,7 +1165,19 @@ def update_history(products, cfg):
 def build_page(deals, per_shop):
     DOCS.mkdir(exist_ok=True)
     # sklep chwilowo niedostępny? zostaw jego poprzednie okazje zamiast je kasować
-    prev = load_json(DOCS / "deals.json", {}).get("deals", [])
+    prev_payload = load_json(DOCS / "deals.json", {})
+    prev = prev_payload.get("deals", [])
+    now = datetime.now(timezone.utc)
+    shop_updated = dict(prev_payload.get("shop_updated", {}))
+    for shop, count in per_shop.items():
+        if count:
+            shop_updated[shop] = now.isoformat(timespec="seconds")
+    # sklepy skanowane w drugim trybie (GitHub / komputer) – przepisz ich ostatnie wyniki, najwyżej sprzed 4 dni
+    for shop in {d.get("shop") for d in prev} - set(per_shop):
+        when = shop_updated.get(shop, "")
+        if when and when >= (now - timedelta(days=4)).isoformat():
+            deals = deals + [d for d in prev if d.get("shop") == shop]
+            per_shop = {**per_shop, shop: prev_payload.get("shops", {}).get(shop, 0)}
     for shop, count in per_shop.items():
         if count == 0:
             # tylko jeden skan wstecz – inaczej zakończona wyprzedaż albo martwy sklep wisiałyby w nieskończoność
@@ -1173,6 +1188,7 @@ def build_page(deals, per_shop):
     payload = {
         "updated": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "shops": per_shop,
+        "shop_updated": shop_updated,
         "deals": sorted(deals, key=lambda d: -d["discount"]),
     }
     raw = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
@@ -1186,9 +1202,11 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--config", default=str(ROOT / "config.json"))
     ap.add_argument("--debug", action="store_true", help="(zostawione dla zgodności, nic nie robi)")
+    ap.add_argument("--local", action="store_true", help='skanuj tylko sklepy z "local": true (z domowego komputera)')
     args = ap.parse_args()
     cfg = json.loads(Path(args.config).read_text(encoding="utf-8"))
     SKIP_DEPARTMENTS.update(cfg.get("skip_departments", []))
+    cfg["_local"] = args.local
 
     products, per_shop = scan(cfg)
     log("Podsumowanie: " + ", ".join(f"{k}: {v}" for k, v in per_shop.items()))

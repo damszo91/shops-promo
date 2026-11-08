@@ -262,7 +262,8 @@
           "path": "promo/wyprzedaz-sezonowa-mezczyzna"
         }
       ],
-      "group": "CCC"
+      "group": "CCC",
+      "local": true
     },
     {
       "name": "eobuwie",
@@ -271,14 +272,15 @@
       "departments": [
         {
           "label": "Kobieta",
-          "path": "/c/damskie/akcja:new_sale_lp/omnibus_discount:~r-5-99"
+          "path": "/c/damskie/omnibus_discount:~r-10-99"
         },
         {
           "label": "Mężczyzna",
-          "path": "/c/meskie/akcja:new_sale_lp/omnibus_discount:~r-5-99"
+          "path": "/c/meskie/omnibus_discount:~r-10-99"
         }
       ],
-      "group": "CCC"
+      "group": "CCC",
+      "local": true
     },
     {
       "name": "Sizeer",
@@ -399,7 +401,8 @@
           "label": "Mężczyzna",
           "query": "mezczyzni-outlet"
         }
-      ]
+      ],
+      "local": true
     },
     {
       "name": "Nike",
