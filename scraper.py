@@ -1247,8 +1247,10 @@ def build_page(deals, per_shop):
             shop_updated[shop] = now.isoformat(timespec="seconds")
     # sklepy skanowane w drugim trybie (GitHub / komputer) – przepisz ich ostatnie wyniki, najwyżej sprzed 4 dni
     for shop in {d.get("shop") for d in prev} - set(per_shop):
-        when = shop_updated.get(shop, "")
+        # brak daty dla sklepu (plik zapisany starszą wersją robota) → data całego poprzedniego skanu
+        when = shop_updated.get(shop) or prev_payload.get("updated", "")
         if when and when >= (now - timedelta(days=4)).isoformat():
+            shop_updated[shop] = when
             deals = deals + [d for d in prev if d.get("shop") == shop]
             per_shop = {**per_shop, shop: prev_payload.get("shops", {}).get(shop, 0)}
     for shop, count in per_shop.items():
