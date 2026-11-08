@@ -395,14 +395,17 @@
       "departments": [
         {
           "label": "Kobieta",
-          "query": "kobiety-outlet"
+          "query": "kobiety-outlet",
+          "max_pages": 10
         },
         {
           "label": "Mężczyzna",
-          "query": "mezczyzni-outlet"
+          "query": "mezczyzni-outlet",
+          "max_pages": 10
         }
       ],
-      "local": true
+      "local": true,
+      "pause": 5
     },
     {
       "name": "Nike",

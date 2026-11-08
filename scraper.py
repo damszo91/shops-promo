@@ -64,7 +64,10 @@ class Fetch:
             import os
             from playwright.sync_api import sync_playwright
             self._pw, self._pages = sync_playwright().start(), {}
-            opts = dict(headless=bool(os.environ.get("SHOPS_HEADLESS")), args=["--start-minimized"])
+            # bez znaczników „przeglądarka sterowana automatycznie”, po których sklepy rozpoznają roboty
+            opts = dict(headless=bool(os.environ.get("SHOPS_HEADLESS")),
+                        args=["--start-minimized", "--disable-blink-features=AutomationControlled"],
+                        ignore_default_args=["--enable-automation"])
             if os.environ.get("SHOPS_BROWSER_PATH"):
                 self._br = self._pw.chromium.launch(executable_path=os.environ["SHOPS_BROWSER_PATH"], **opts)
             else:
@@ -81,7 +84,7 @@ class Fetch:
             self._pages[host] = pg
         return self._pages[host]
 
-    def real_get(self, url, warmup=None, headers=None, tries=2):
+    def real_get(self, url, warmup=None, headers=None, tries=3):
         last = None
         for i in range(tries):
             try:
@@ -95,6 +98,10 @@ class Fetch:
                 last = f"HTTP {st}"
                 if st == 404:
                     break
+                if st == 429:                  # „za dużo zapytań” – sklep każe zwolnić
+                    log(f"    HTTP 429 – sklep prosi o wolniejsze tempo, czekam {60 * (i + 1)} s")
+                    time.sleep(60 * (i + 1))
+                    continue
             except Exception as e:
                 last = str(e).splitlines()[0]
             time.sleep(5 * (i + 1))
@@ -102,11 +109,11 @@ class Fetch:
 
     def close(self):
         if hasattr(self, "_pw"):
-            try:
-                self._br.close()
-                self._pw.stop()
-            except Exception:
-                pass
+            for step in (self._ctx.close, self._br.close, self._pw.stop):
+                try:
+                    step()
+                except Exception as e:
+                    log(f"  (zamykanie przeglądarki: {e})")
 
     def browser_get(self, url, warmup=None, tries=2, headers=None):
         if self.real_browser:
@@ -993,6 +1000,8 @@ def scan_adidas(f, shop, dept):
     # API listy produktów sklepu: 48 na stronę (&start=N); bierzemy max_pages stron
     seen = set()
     for page in range(dept.get("max_pages", 15)):
+        if page:
+            time.sleep(shop.get("pause", 0))     # Adidas szybko odpowiada „429 – za dużo zapytań”
         text, _ = f.browser_get(f"{shop['site']}/api/plp/content-engine?query={dept['query']}&start={page * 48}",
                                 warmup=f"{shop['site']}/{dept['query']}",
                                 headers={"Accept": "application/json"})
@@ -1164,7 +1173,7 @@ def scan(cfg):
         results = {}
         for r in pool.map(run, groups.values()):
             results.update(r)
-    f.close()
+        pool.submit(f.close).result()   # przeglądarkę zamyka ten sam wątek, który ją otworzył
     products, per_shop = {}, {}
     for shop in shops:
         res = results.get(shop["name"], {})
