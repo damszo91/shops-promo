@@ -49,7 +49,8 @@
   .filters { display:grid; gap:12px; padding: 4px 8px; }
   .filters label { display:flex; align-items:center; justify-content:space-between; gap:10px; font-size:14px; }
   .filters input[type=range] { flex:1; accent-color: var(--hot); }
-  .filters input[type=number] { width: 100px; }
+  .range { display:flex; align-items:center; gap:6px; }
+  .filters input[type=number] { width: 72px; }
   .shade { display:none; }
   main { flex: 1; min-width: 0; padding: 14px; }
   .bar { display:flex; flex-wrap:wrap; align-items:center; gap:8px 12px; margin: 0 2px 12px; }
@@ -121,18 +122,18 @@
   <nav id="side" aria-label="Menu">
     <div class="side-head"><b>Menu</b><button id="closeMenu" aria-label="Zamknij">✕</button></div>
     <div class="side-meta" id="sideMeta"></div>
-    <div class="sec">Kategoria</div>
-    <div id="cats"></div>
+    <div class="sec">Rodzaj</div>
+    <div id="kinds"></div>
+    <div class="sec">Dla kogo</div>
+    <div id="sexes"></div>
+    <div id="bestBox" style="margin-top:8px"></div>
     <div class="sec">Sklep</div>
     <div id="shops"></div>
     <div class="sec">Filtry</div>
     <div class="filters">
-      <label>Rabat min. <input type="range" id="minOff" min="10" max="80" step="5" value="10"> <b id="minOffV">10%</b></label>
-      <label>Cena maks. (zł) <input type="number" id="maxPrice" min="0" step="5" placeholder="bez limitu"></label>
+      <label>Rabat <input type="range" id="minOff" min="10" max="80" step="5" value="10"> <b id="minOffV">10%</b></label>
+      <label>Cena <span class="range"><input type="number" id="minPrice" min="0" step="5" placeholder="od zł" aria-label="Cena od"> – <input type="number" id="maxPrice" min="0" step="5" placeholder="do zł" aria-label="Cena do"></span></label>
       <label>Mój rozmiar <select id="size"><option value="">wszystkie</option></select></label>
-      <label>Tylko nowe (24 h) <input type="checkbox" id="onlyNew"></label>
-      <label>Ukryj podejrzane rabaty <input type="checkbox" id="hideSus"></label>
-      <label>Tylko ulubione <input type="checkbox" id="onlyFav"></label>
     </div>
   </nav>
   <main>
@@ -163,7 +164,7 @@ const store = {
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
 };
 let favs = new Set(store.get('favs', []));
-let cat = 'Wszystko', shop = 'Wszystkie', limit = 60, kind = '', allShops = false, sc = {};
+let shop = 'Wszystkie', limit = 60, kind = '', sex = '', best = false, allShops = false, sc = {};
 const zl = n => n.toFixed(2).replace('.', ',') + ' zł';
 const realOff = d => d.real_discount30 != null ? d.real_discount30 : d.discount;
 let base = 'regular';
@@ -207,19 +208,18 @@ function init() {
     return (parseFloat(a) || 999) - (parseFloat(b) || 999) || a.localeCompare(b); });
   $('size').insertAdjacentHTML('beforeend', allSizes.map(x => `<option>${esc(x)}</option>`).join(''));
   drawCats();
-  $('cats').onclick = e => { const b = e.target.closest('.it'); if (!b) return;
-    if (b.dataset.k != null) { kind = b.dataset.k; closeMenu(); }
-    else { const c = b.dataset.c; if (c !== cat) kind = ''; cat = c; if (!SEX.includes(c)) closeMenu(); }
-    drawCats(); reset(); };
+  // trzy niezależne filtry – łączą się ze sobą (np. Odzież + Kobieta)
+  $('kinds').onclick = e => { const b = e.target.closest('.it'); if (!b) return; kind = b.dataset.k; drawCats(); reset(); };
+  $('sexes').onclick = e => { const b = e.target.closest('.it'); if (!b) return; sex = b.dataset.x; drawCats(); reset(); };
+  $('bestBox').onclick = e => { if (!e.target.closest('.it')) return; best = !best; drawCats(); reset(); };
   const saved = store.get('filters', {});
   base = store.get('base', saved.sort === 'real' ? 'low30' : 'regular');
   if (saved.sort === 'real') saved.sort = 'discount';
   const paintBase = () => $('base').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', b.dataset.b === base));
   paintBase();
   $('base').onclick = e => { const b = e.target.closest('button'); if (!b) return; base = b.dataset.b; store.set('base', base); paintBase(); reset(); };
-  ['sort', 'minOff', 'maxPrice', 'size'].forEach(k => { if (saved[k] != null) $(k).value = saved[k]; });
-  ['onlyNew', 'hideSus', 'onlyFav'].forEach(k => $(k).checked = !!saved[k]);
-  ['q', 'sort', 'minOff', 'maxPrice', 'size', 'onlyNew', 'hideSus', 'onlyFav'].forEach(k => $(k).addEventListener('input', reset));
+  ['sort', 'minOff', 'minPrice', 'maxPrice', 'size'].forEach(k => { if (saved[k] != null) $(k).value = saved[k]; });
+  ['q', 'sort', 'minOff', 'minPrice', 'maxPrice', 'size'].forEach(k => $(k).addEventListener('input', reset));
   $('more').onclick = () => { limit += 60; render(); };
   $('grid').onclick = e => {
     const b = e.target.closest('.fav'); if (!b) return;
@@ -231,10 +231,12 @@ function init() {
 
 const SEX = ['Kobieta', 'Mężczyzna'];
 const inC = (d, c) => d.category === c || (d.also || []).includes(c);
-const isKind = d => !kind || (kind === 'shoes') === !!d.shoes;
-const inCat = d => cat === 'Wszystko' || (cat === '__best' ? d.best
-  : SEX.includes(cat) ? inC(d, cat) && isKind(d)
-  : inC(d, cat));
+const isHome = d => inC(d, 'Dom');
+const KINDS = { clothes: d => !d.shoes && !isHome(d), shoes: d => d.shoes && !isHome(d), home: isHome };
+const okKind = (d, k = kind) => !k || KINDS[k](d);
+const okSex = (d, x = sex) => !x || inC(d, x);
+const okBest = d => !best || d.best;
+const inCat = d => okKind(d) && okSex(d) && okBest(d);
 
 function closeMenu() { document.body.classList.remove('menu'); }
 
@@ -248,54 +250,43 @@ function drawShops() {
     + (names.length > 12 ? `<button class="it toggle" data-more="1">${short ? `Pokaż wszystkie (${names.length})` : 'Zwiń listę'}</button>` : '');
 }
 
-// drzewko: Wszystko · Kobieta (Odzież, Buty) · Mężczyzna (Odzież, Buty) · Dom · Bestsellery
+// liczba przy każdej opcji = ile produktów zostanie po jej wybraniu (przy pozostałych filtrach bez zmian)
 function drawCats() {
   const mine = DATA.deals.filter(d => shop === 'Wszystkie' || d.shop === shop);
-  const cnt = {};
-  mine.forEach(d => [d.category, ...(d.also || [])].forEach(c => cnt[c] = (cnt[c] || 0) + 1));
-  const icon = { 'Kobieta': '👩', 'Mężczyzna': '👨', 'Dom': '🏠' };
-  const rest = Object.keys(cnt).filter(c => !SEX.includes(c)).sort((x, y) => cnt[y] - cnt[x]);
-  const opts = [['Wszystko', mine.length], ...['Kobieta', 'Mężczyzna', ...rest].map(c => [c, cnt[c] || 0]),
-    ['__best', mine.filter(d => d.best).length]];
-  if (!opts.some(o => o[0] === cat && (o[1] || o[0] === 'Wszystko'))) { cat = 'Wszystko'; kind = ''; }
-  $('cats').innerHTML = opts.filter(o => o[1] || o[0] === 'Wszystko').map(([v, n]) => {
-    const sex = SEX.includes(v), open = sex && v === cat;
-    let h = `<button class="it${sex ? ' parent' : ''}" data-c="${esc(v)}" aria-pressed="${v === cat && (!sex || !kind)}"${sex ? ` aria-expanded="${open}"` : ''}>`
-      + `${sex ? (open ? '▾ ' : '▸ ') : ''}${v === '__best' ? '🔥 Bestsellery' : (icon[v] ? icon[v] + ' ' : '') + esc(v)}<span class="n">${n}</span></button>`;
-    if (open) {
-      const list = mine.filter(d => inC(d, v));
-      h += [['clothes', '👕 Odzież', list.filter(d => !d.shoes).length], ['shoes', '👟 Buty', list.filter(d => d.shoes).length]]
-        .filter(o => o[2]).map(([k, t, m]) => `<button class="it sub" data-k="${k}" aria-pressed="${kind === k}">${t}<span class="n">${m}</span></button>`).join('');
-    }
-    return h;
-  }).join('');
+  const item = (attr, v, label, n, on) => `<button class="it" ${attr}="${v}" aria-pressed="${on}">${label}<span class="n">${n}</span></button>`;
+  const kOpts = [['', 'Wszystko'], ['clothes', '👕 Odzież'], ['shoes', '👟 Buty'], ['home', '🏠 Dom']];
+  $('kinds').innerHTML = kOpts.map(([v, t]) => [v, t, mine.filter(d => okKind(d, v) && okSex(d) && okBest(d)).length])
+    .filter(o => o[2] || o[0] === '' || o[0] === kind).map(([v, t, n]) => item('data-k', v, t, n, v === kind)).join('');
+  const xOpts = [['', 'Wszyscy'], ['Kobieta', '👩 Kobieta'], ['Mężczyzna', '👨 Mężczyzna']];
+  $('sexes').innerHTML = xOpts.map(([v, t]) => item('data-x', v, t, mine.filter(d => okSex(d, v) && okKind(d) && okBest(d)).length, v === sex)).join('');
+  const nb = mine.filter(d => d.best && okKind(d) && okSex(d)).length;
+  $('bestBox').innerHTML = nb || best ? item('data-b', 1, '🔥 Tylko bestsellery', nb, best) : '';
 }
 
-const catName = () => cat === '__best' ? 'Bestsellery' : cat === 'Wszystko' ? 'Wszystkie okazje' : cat;
 function crumb() {
-  const parts = [catName()];
-  if (SEX.includes(cat) && kind) parts.push(kind === 'shoes' ? 'Buty' : 'Odzież');
+  const parts = [];
+  if (kind) parts.push({ clothes: 'Odzież', shoes: 'Buty', home: 'Dom' }[kind]);
+  if (sex) parts.push(sex);
+  if (best) parts.push('Bestsellery');
   if (shop !== 'Wszystkie') parts.push(shop);
-  $('crumb').textContent = parts.join(' › ');
+  $('crumb').textContent = parts.length ? parts.join(' › ') : 'Wszystkie okazje';
 }
 
 function reset() {
   limit = 60;
-  store.set('filters', { sort: $('sort').value, minOff: $('minOff').value, maxPrice: $('maxPrice').value, size: $('size').value,
-    onlyNew: $('onlyNew').checked, hideSus: $('hideSus').checked, onlyFav: $('onlyFav').checked });
+  store.set('filters', { sort: $('sort').value, minOff: $('minOff').value, minPrice: $('minPrice').value, maxPrice: $('maxPrice').value, size: $('size').value });
   render();
 }
 
 function render() {
-  const q = $('q').value.trim().toLowerCase(), minOff = +$('minOff').value, maxP = parseFloat($('maxPrice').value), size = $('size').value;
+  const q = $('q').value.trim().toLowerCase(), minOff = +$('minOff').value, minP = parseFloat($('minPrice').value), maxP = parseFloat($('maxPrice').value), size = $('size').value;
   $('minOffV').textContent = minOff + '%';
   let list = DATA.deals.filter(d =>
     (shop === 'Wszystkie' || d.shop === shop) &&
     inCat(d) && off(d) >= minOff &&
-    (!maxP || d.current <= maxP) && (!q || d.name.toLowerCase().includes(q)) &&
+    (!minP || d.current >= minP) && (!maxP || d.current <= maxP) && (!q || d.name.toLowerCase().includes(q)) &&
     (!size || !d.sizes || !d.sizes.length || d.sizes.includes(size) || d.sizes.includes('Jeden rozmiar')) &&
-    (!$('onlyNew').checked || isNew(d)) && (!$('hideSus').checked || !isSus(d)) &&
-    (!$('onlyFav').checked || favs.has(d.url)));
+    true);
   const s = $('sort').value;
   const by = { discount: (a, b) => off(b) - off(a) || b.discount - a.discount, price: (a, b) => a.current - b.current,
     saving: (a, b) => (b.regular - b.current) - (a.regular - a.current),
