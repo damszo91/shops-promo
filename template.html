@@ -133,7 +133,7 @@
     <div class="filters">
       <label>Rabat <input type="range" id="minOff" min="10" max="80" step="5" value="10"> <b id="minOffV">10%</b></label>
       <label>Cena <span class="range"><input type="number" id="minPrice" min="0" step="5" placeholder="od zł" aria-label="Cena od"> – <input type="number" id="maxPrice" min="0" step="5" placeholder="do zł" aria-label="Cena do"></span></label>
-      <label>Mój rozmiar <select id="size"><option value="">wszystkie</option></select></label>
+      <label>Rozmiar <select id="size"><option value="">wszystkie</option></select></label>
     </div>
   </nav>
   <main>
@@ -201,12 +201,6 @@ function init() {
   const mq = matchMedia('(min-width: 900px)');
   const placeQ = () => mq.matches ? $('meta').before($('q')) : $('qMobBox').append($('q'));
   placeQ(); mq.addEventListener ? mq.addEventListener('change', placeQ) : mq.addListener(placeQ);
-  const order = ['XXS','XS','S','M','L','XL','XXL','XXXL'];
-  const allSizes = [...new Set(DATA.deals.flatMap(d => d.sizes || []))].filter(x => x !== 'Jeden rozmiar');
-  allSizes.sort((a, b) => { const ia = order.indexOf(a), ib = order.indexOf(b);
-    if (ia > -1 || ib > -1) return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
-    return (parseFloat(a) || 999) - (parseFloat(b) || 999) || a.localeCompare(b); });
-  $('size').insertAdjacentHTML('beforeend', allSizes.map(x => `<option>${esc(x)}</option>`).join(''));
   drawCats();
   // trzy niezależne filtry – łączą się ze sobą (np. Odzież + Kobieta)
   $('kinds').onclick = e => { const b = e.target.closest('.it'); if (!b) return; kind = b.dataset.k; drawCats(); reset(); };
@@ -260,7 +254,27 @@ function drawCats() {
   const xOpts = [['', 'Wszyscy'], ['Kobieta', '👩 Kobieta'], ['Mężczyzna', '👨 Mężczyzna']];
   $('sexes').innerHTML = xOpts.map(([v, t]) => item('data-x', v, t, mine.filter(d => okSex(d, v) && okKind(d) && okBest(d)).length, v === sex)).join('');
   const nb = mine.filter(d => d.best && okKind(d) && okSex(d)).length;
+  drawSizes();
   $('bestBox').innerHTML = nb || best ? item('data-b', 1, '🔥 Tylko bestsellery', nb, best) : '';
+}
+
+// lista rozmiarów zależy od wybranego rodzaju: odzież → S, M, L…, buty → 36, 37…
+// przy „Wszystko” obie grupy osobno
+const SIZE_ORDER = ['XXS','XS','S','M','L','XL','XXL','XXXL'];
+function sortSizes(arr) {
+  return arr.sort((a, b) => { const ia = SIZE_ORDER.indexOf(a), ib = SIZE_ORDER.indexOf(b);
+    if (ia > -1 || ib > -1) return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+    return (parseFloat(a) || 999) - (parseFloat(b) || 999) || a.localeCompare(b); });
+}
+function drawSizes() {
+  const sel = $('size'), cur = sel.value;
+  const pool = DATA.deals.filter(d => (shop === 'Wszystkie' || d.shop === shop) && okKind(d) && okSex(d) && !isHome(d));
+  const sizesOf = list => sortSizes([...new Set(list.flatMap(d => d.sizes || []))].filter(x => x && x !== 'Jeden rozmiar'));
+  const opts = list => list.map(x => `<option${x === cur ? ' selected' : ''}>${esc(x)}</option>`).join('');
+  const clothes = sizesOf(pool.filter(d => !d.shoes)), shoes = sizesOf(pool.filter(d => d.shoes));
+  sel.innerHTML = '<option value="">wszystkie</option>' + (kind === 'clothes' ? opts(clothes) : kind === 'shoes' ? opts(shoes)
+    : (clothes.length ? `<optgroup label="Odzież">${opts(clothes)}</optgroup>` : '') + (shoes.length ? `<optgroup label="Buty">${opts(shoes)}</optgroup>` : ''));
+  if (cur && sel.value !== cur) sel.value = '';
 }
 
 function crumb() {
