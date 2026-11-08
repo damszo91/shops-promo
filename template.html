@@ -184,16 +184,17 @@ function init() {
 }
 
 const SEX = ['Kobieta', 'Mężczyzna'];
+const inC = (d, c) => d.category === c || (d.also || []).includes(c);
 const isKind = d => !kind || (kind === 'shoes') === !!d.shoes;
 const inCat = d => cat === 'Wszystko' || (cat === '__best' ? d.best
-  : SEX.includes(cat) ? d.category === cat && isKind(d)
-  : d.category === cat);
+  : SEX.includes(cat) ? inC(d, cat) && isKind(d)
+  : inC(d, cat));
 
 // górny rząd: Wszystko · Kobieta · Mężczyzna · pozostałe działy (np. Dom) · Bestsellery
 function drawCats() {
   const mine = DATA.deals.filter(d => shop === 'Wszystkie' || d.shop === shop);
   const cnt = {};
-  mine.forEach(d => cnt[d.category] = (cnt[d.category] || 0) + 1);
+  mine.forEach(d => [d.category, ...(d.also || [])].forEach(c => cnt[c] = (cnt[c] || 0) + 1));
   const icon = { 'Kobieta': '👩 ', 'Mężczyzna': '👨 ', 'Dom': '🏠 ' };
   const rest = Object.keys(cnt).filter(c => !SEX.includes(c)).sort((x, y) => cnt[y] - cnt[x]);
   const opts = [['Wszystko', 0], ...['Kobieta', 'Mężczyzna', ...rest].map(c => [c, cnt[c] || 0]),
@@ -210,7 +211,7 @@ function drawKind() {
   const box = $('kind');
   box.hidden = !SEX.includes(cat);
   if (box.hidden) return;
-  const list = DATA.deals.filter(d => (shop === 'Wszystkie' || d.shop === shop) && d.category === cat);
+  const list = DATA.deals.filter(d => (shop === 'Wszystkie' || d.shop === shop) && inC(d, cat));
   const opts = [['', 'Wszystko', list.length], ['clothes', '👕 Odzież', list.filter(d => !d.shoes).length],
     ['shoes', '👟 Buty', list.filter(d => d.shoes).length]];
   box.innerHTML = opts.map(([v, t, n]) => `<button class="chip" data-k="${v}" aria-pressed="${v === kind}">${t} · ${n}</button>`).join('');

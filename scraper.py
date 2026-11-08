@@ -1038,7 +1038,12 @@ def scan_shop(f, shop):
             return
         p["shoes"] = bool(SHOE_RE.search(f"{p['name']} {cat} {label}"))
         if p["url"] in products:
-            products[p["url"]]["best"] = products[p["url"]].get("best") or p["best"]
+            old = products[p["url"]]
+            old["best"] = old.get("best") or p["best"]
+            old["shoes"] = old.get("shoes") or p["shoes"]
+            # ten sam produkt w kilku działach (np. unisex) – pokaż go w każdym z nich
+            if label != old["category"] and label not in old.setdefault("also", []):
+                old["also"].append(label)
             return
         p.update(shop=shop["name"], category=label,
                  current=round(p["current"], 2), regular=round(p["regular"], 2),
