@@ -267,9 +267,13 @@ def scan_answear(f, shop, dept):
     page, got = 1, 0
     while True:
         url = shop["site"] + dept["path"] + (f"?page={page}" if page > 1 else "")
-        html, final = f.get(url)
+        html, final = f.browser_get(url, warmup=shop["site"] + "/")
         i = html.find('"items":[{"url":"/p/')
         if i < 0:
+            if page == 1 and '"items":[]' not in html:
+                # strona bez listy produktów – zwykle blokada robotów; zgłoś zamiast cicho zwracać 0
+                t = re.search(r"<title>([^<]*)", html)
+                raise RuntimeError(f"brak listy produktów (tytuł strony: {t.group(1).strip() if t else '?'}, {len(html)} znaków)")
             return
         items = json_block(html, i + 8)
         m = re.search(r'\],"count":(\d+)', html[i:])
