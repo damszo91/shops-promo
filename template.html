@@ -240,7 +240,7 @@ function drawShops() {
   const short = !allShops && names.length > 12 && names.indexOf(shop) < 10;
   const shown = short ? names.slice(0, 10) : names;
   $('shops').innerHTML = ['Wszystkie', ...shown].map(c =>
-    `<button class="it" data-s="${esc(c)}" aria-pressed="${c === shop}">${esc(c)}<span class="n">${c === 'Wszystkie' ? names.length : sc[c]}</span></button>`).join('')
+    `<button class="it" data-s="${esc(c)}" aria-pressed="${c === shop}">${esc(c)}<span class="n">${c === 'Wszystkie' ? DATA.deals.length : sc[c]}</span></button>`).join('')
     + (names.length > 12 ? `<button class="it toggle" data-more="1">${short ? `Pokaż wszystkie (${names.length})` : 'Zwiń listę'}</button>` : '');
 }
 
