@@ -343,6 +343,87 @@
           "path": "/mezczyzni-promocja/"
         }
       ]
+    },
+    {
+      "name": "Puma",
+      "type": "puma",
+      "group": "Puma",
+      "site": "https://eu.puma.com",
+      "departments": [
+        {
+          "label": "Kobieta",
+          "path": "/pl/pl/kobiety/wyprzedaz"
+        },
+        {
+          "label": "Mężczyzna",
+          "path": "/pl/pl/mezczyzni/wyprzedaz"
+        }
+      ]
+    },
+    {
+      "name": "Reebok",
+      "type": "shopify",
+      "group": "Reebok",
+      "site": "https://www.reebok.eu",
+      "product_prefix": "/pl-pl",
+      "departments": [
+        {
+          "label": "Kobieta",
+          "path": "/pl-pl/collections/womens-reebok-clearance"
+        },
+        {
+          "label": "Mężczyzna",
+          "path": "/pl-pl/collections/mens-clearance"
+        }
+      ]
+    },
+    {
+      "name": "Adidas",
+      "type": "adidas",
+      "group": "Adidas",
+      "site": "https://www.adidas.pl",
+      "departments": [
+        {
+          "label": "Kobieta",
+          "query": "kobiety-outlet"
+        },
+        {
+          "label": "Mężczyzna",
+          "query": "mezczyzni-outlet"
+        }
+      ]
+    },
+    {
+      "name": "Nike",
+      "type": "nike",
+      "group": "Nike",
+      "site": "https://www.nike.com",
+      "departments": [
+        {
+          "label": "Kobieta",
+          "path": "/pl/w/kobiety-wyprzedaz-3yaepz5e1x6"
+        },
+        {
+          "label": "Kobieta",
+          "path": "/pl/w/kobiety-wyprzedaz-buty-3yaepz5e1x6zy7ok"
+        },
+        {
+          "label": "Kobieta",
+          "path": "/pl/w/kobiety-wyprzedaz-odziez-3yaepz5e1x6z6ymx6"
+        },
+        {
+          "label": "Mężczyzna",
+          "path": "/pl/w/mezczyzni-wyprzedaz-3yaepznik1"
+        },
+        {
+          "label": "Mężczyzna",
+          "path": "/pl/w/mezczyzni-wyprzedaz-buty-3yaepznik1zy7ok"
+        },
+        {
+          "label": "Mężczyzna",
+          "path": "/pl/w/mezczyzni-wyprzedaz-odziez-3yaepznik1z6ymx6"
+        }
+      ]
     }
   ],
   "skip_departments": [

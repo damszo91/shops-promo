@@ -20,6 +20,7 @@ Nie wymaga dodatkowych bibliotek – wystarczy Python 3.9+.
 Uruchomienie:  python scraper.py
 """
 import argparse
+import html
 import json
 import re
 import sys
@@ -866,10 +867,156 @@ def scan_zalando(f, shop, dept):
             return
 
 
+def scan_puma(f, shop, dept):
+    # dane produktów siedzą w __NEXT_DATA__ jako zaszyty tekst JSON (pamięć podręczna urql);
+    # 24 produkty na stronę (?page=N), posortowane od bestsellerów wyprzedaży – bierzemy max_pages stron
+    seen = set()
+    for page in range(1, dept.get("max_pages", 20) + 1):
+        url = f"{shop['site']}{dept['path']}" + (f"?page={page}" if page > 1 else "")
+        page_html, _ = f.browser_get(url, warmup=shop["site"] + "/pl/pl")
+        m = re.search(r'<script id="__NEXT_DATA__"[^>]*>(.*?)</script>', page_html, re.S)
+        if not m:
+            raise RuntimeError("brak danych produktów na stronie")
+        items = []
+
+        def walk(o):
+            if isinstance(o, str):
+                if '"itemsSection"' in o:
+                    walk(json.loads(o))
+            elif isinstance(o, dict):
+                sec = o.get("itemsSection")
+                if isinstance(sec, dict) and isinstance(sec.get("items"), list):
+                    items.extend(sec["items"])
+                    return
+                for v in o.values():
+                    walk(v)
+            elif isinstance(o, list):
+                for v in o:
+                    walk(v)
+        walk(json.loads(m.group(1)))
+        links = dict(re.findall(r'data-product-id="([^"]+)".*?href="(/[^"]*?/pd/[^"]+)"', page_html, re.S))
+        new = 0
+        for it in items:
+            hit = it.get("productSearchHit") or {}
+            v, mp = hit.get("variantProduct") or {}, hit.get("masterProduct") or {}
+            vid = v.get("id") or it.get("id")
+            if not vid or vid in seen:
+                continue
+            seen.add(vid)
+            new += 1
+            pr = v.get("productPrice") or {}
+            oos = v.get("displayOutOfStock") or {}
+            href = links.get(vid) or f"/pl/pl/pd/{re.sub(r'[^a-z0-9]+', '-', (v.get('name') or '').lower()).strip('-')}/{hit.get('masterId')}?swatch={hit.get('color')}"
+            img = v.get("preview") or ""
+            yield {
+                "url": shop["site"] + href.replace("&amp;", "&"),
+                "name": v.get("name") or mp.get("name"),
+                "image": img.replace("w_2000,h_2000", "w_500,h_500"),
+                "current": num(pr.get("salePrice")) or num(pr.get("price")),
+                "regular": num(pr.get("price")),
+                "lowest30": None, "sizes": [],
+                "available": bool(v.get("orderable", True)) and not oos.get("soldOut"),
+                "cat": "buty" if mp.get("productDivision") == "Footwear" else "",
+            }
+        log(f"    strona {page}: {len(seen)} produktów")
+        if not new or len(items) < 24:
+            return
+
+
+def scan_adidas(f, shop, dept):
+    # API listy produktów sklepu: 48 na stronę (&start=N); bierzemy max_pages stron
+    seen = set()
+    for page in range(dept.get("max_pages", 15)):
+        text, _ = f.browser_get(f"{shop['site']}/api/plp/content-engine?query={dept['query']}&start={page * 48}",
+                                warmup=f"{shop['site']}/{dept['query']}",
+                                headers={"Accept": "application/json"})
+        items = ((json.loads(text).get("raw") or {}).get("itemList") or {}).get("items") or []
+        new = 0
+        for it in items:
+            pid = it.get("productId")
+            if not pid or pid in seen:
+                continue
+            seen.add(pid)
+            new += 1
+            ages = " ".join(it.get("ageGroups") or [])
+            yield {
+                "url": shop["site"] + (it.get("link") or ""),
+                "name": it.get("displayName"),
+                "image": ((it.get("image") or {}).get("src") or "").replace("w_280,h_280", "w_500,h_500"),
+                "current": num(it.get("salePrice")) or num(it.get("price")),
+                "regular": num(it.get("price")),
+                "lowest30": None, "sizes": it.get("availableSizes") or [],
+                "available": bool(it.get("orderable", 1)),
+                "cat": f"{'buty' if it.get('category') == 'shoes' else ''} {'kids' if re.search('kid|child|infant|youth', ages, re.I) else ''}",
+            }
+        log(f"    strona {page + 1}: {len(seen)} produktów")
+        if not new or len(items) < 48:
+            return
+
+
+def scan_nike(f, shop, dept):
+    # Nike od razu wysyła w stronie ok. 96 pierwszych produktów działu (resztę doładowuje skrypt) –
+    # dlatego dział jest podzielony na buty i odzież, żeby złapać więcej
+    page_html, _ = f.browser_get(shop["site"] + dept["path"], warmup=shop["site"] + "/pl/")
+    cards = page_html.split('data-testid="product-card"')[1:]
+    if not cards:
+        raise RuntimeError("brak produktów na stronie")
+    for c in cards:
+        link = re.search(r'product-card__link-overlay"[^>]*href="([^"]+)"[^>]*>([^<]+)<', c)
+        cur = re.search(r'data-testid="product-price-reduced"[^>]*>([^<]+)<', c)
+        reg = re.search(r'data-testid="product-price"[^>]*>([^<]+)<', c)
+        if not (link and cur and reg):
+            continue
+        sub = re.search(r'product-card__subtitle"[^>]*>([^<]+)<', c)
+        img = re.search(r'product-card__hero-image[^>]*src="([^"]+)"', c) or re.search(r'<img[^>]*src="([^"]+)"', c)
+        sub = html.unescape(sub.group(1)) if sub else ""
+        yield {
+            "url": link.group(1), "name": f"{html.unescape(link.group(2)).strip()} – {sub}".strip(" –"),
+            "image": html.unescape(img.group(1)) if img else None,
+            "current": num(html.unescape(cur.group(1))), "regular": num(html.unescape(reg.group(1))),
+            # Nike przekreśla najniższą cenę z 30 dni (podpis „Najniższa cena”)
+            "lowest30": num(html.unescape(reg.group(1))) if 'data-testid="lowest-price"' in c else None,
+            "sizes": [], "cat": sub,
+        }
+    log(f"    {len(cards)} produktów")
+
+
+SHOPIFY_KIDS = {"kids", "junior", "boys", "girls", "infant", "toddler", "baby"}
+
+
+def scan_shopify(f, shop, dept):
+    # sklep na Shopify: /collections/<dział>/products.json – gotowe ceny (z cenami w zł dla rynku /pl-pl)
+    for page in range(1, 21):
+        text, _ = f.browser_get(f"{shop['site']}{dept['path']}/products.json?limit=250&page={page}",
+                                warmup=shop["site"] + "/pl-pl")
+        prods = json.loads(text).get("products") or []
+        for p in prods:
+            tags = {t.lower() for t in p.get("tags") or []}
+            if tags & SHOPIFY_KIDS:
+                continue
+            vs = p.get("variants") or []
+            av = [v for v in vs if v.get("available")]
+            v = min(av or vs, key=lambda x: num(x.get("price")) or 0, default={})
+            imgs = p.get("images") or []
+            yield {
+                "url": f"{shop['site']}{shop.get('product_prefix', '')}/products/{p['handle']}",
+                "name": p.get("title"),
+                "image": imgs[0]["src"] if imgs else None,
+                "current": num(v.get("price")), "regular": num(v.get("compare_at_price")),
+                "lowest30": None, "sizes": [x.get("title") for x in av],
+                "available": bool(av),
+                "cat": f"{p.get('product_type', '')} {'buty' if 'footwear' in tags else ''}",
+            }
+        log(f"    strona {page}: {len(prods)} produktów")
+        if len(prods) < 250:
+            return
+
+
 SCANNERS = {"lpp": scan_lpp, "answear": scan_answear, "hm": scan_hm,
             "esotiq": scan_esotiq, "calz": scan_calz, "sfra": scan_sfra,
             "ccc": scan_ccc, "eobuwie": scan_eobuwie, "sizeer": scan_sizeer, "50style": scan_50style,
-            "deichmann": scan_deichmann, "zalando": scan_zalando}
+            "deichmann": scan_deichmann, "zalando": scan_zalando, "puma": scan_puma, "shopify": scan_shopify,
+            "adidas": scan_adidas, "nike": scan_nike}
 # sklepy, w których robot sam znajduje działy promocji
 SHOP_SCANNERS = {"zara": scan_zara, "itx": scan_itx}
 
