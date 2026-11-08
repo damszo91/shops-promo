@@ -17,38 +17,68 @@
   }
   * { box-sizing: border-box; }
   body { margin:0; font: 15px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--ink); }
-  header { position: sticky; top: 0; z-index: 5; background: color-mix(in srgb, var(--bg) 92%, transparent);
-           backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); padding: 12px 14px 10px; }
-  .top { display:flex; align-items:baseline; justify-content:space-between; gap:10px; }
-  h1 { margin:0; font-size: 22px; letter-spacing:-.02em; }
+  header { position: sticky; top: 0; z-index: 20; background: color-mix(in srgb, var(--bg) 92%, transparent);
+           backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); padding: 10px 14px; }
+  .top { display:flex; align-items:center; gap:12px; }
+  h1 { margin:0; font-size: 21px; letter-spacing:-.02em; white-space:nowrap; }
   h1 span { color: var(--hot); }
-  .meta { color: var(--muted); font-size: 12px; text-align:right; }
-  .row { display:flex; gap:8px; margin-top:10px; }
+  .meta { color: var(--muted); font-size: 12px; text-align:right; white-space:nowrap; }
+  .burger { border:1px solid var(--line); background: var(--card); color: inherit; border-radius: 10px; width:40px; height:40px; font-size:20px; cursor:pointer; flex:0 0 auto; }
   input[type=search], select, input[type=number] {
     font: inherit; color: inherit; background: var(--card); border:1px solid var(--line); border-radius: 10px; padding: 9px 11px; min-width:0;
   }
-  input[type=search] { flex: 1; }
-  select { flex: 0 0 auto; }
-  .chips { display:flex; gap:6px; overflow-x:auto; margin-top:10px; padding-bottom:2px; scrollbar-width:none; }
-  .chips::-webkit-scrollbar { display:none; }
-  .chip { flex:0 0 auto; border:1px solid var(--line); background: var(--card); color: inherit; border-radius: 999px; padding: 6px 12px; font: inherit; font-size: 13px; cursor:pointer; white-space:nowrap; }
-  .chip[aria-pressed=true] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
-  #shops .chip { font-weight: 600; }
-  #shops .chip[aria-pressed=true] { background: var(--hot); border-color: var(--hot); color: #fff; }
+  #q { flex: 1; }
+  .q-mob { display:flex; margin-top:10px; }
   .shop { font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
-  details { margin-top: 8px; }
-  .seg { display:flex; align-items:center; gap:6px; margin-top:10px; font-size:13px; color: var(--muted); }
+  /* menu boczne */
+  .layout { display:flex; align-items:flex-start; max-width: 1400px; margin: 0 auto; }
+  nav#side { width: 260px; flex: 0 0 260px; padding: 14px 12px 40px; background: var(--bg); }
+  .sec { font-size: 12px; font-weight: 700; letter-spacing:.04em; text-transform: uppercase; color: var(--muted); margin: 16px 8px 6px; }
+  .sec:first-child { margin-top: 0; }
+  .it { display:flex; align-items:center; gap:6px; width:100%; text-align:left; border:0; background:transparent; color: inherit;
+        font: inherit; font-size: 14px; padding: 8px 10px; border-radius: 10px; cursor:pointer; }
+  .it:hover { background: var(--card); }
+  .it .n { margin-left:auto; color: var(--muted); font-size: 12px; }
+  .it.sub { padding-left: 32px; }
+  .it[aria-pressed=true] { background: var(--ink); color: var(--bg); }
+  .it[aria-pressed=true] .n { color: inherit; opacity: .75; }
+  .it.parent[aria-pressed=true] { background: var(--card); color: inherit; font-weight: 600; }
+  .it.parent[aria-pressed=true] .n { color: var(--muted); opacity: 1; }
+  #shops .it[aria-pressed=true] { background: var(--hot); color: #fff; }
+  .it.toggle { color: var(--muted); font-size: 13px; }
+  .filters { display:grid; gap:12px; padding: 4px 8px; }
+  .filters label { display:flex; align-items:center; justify-content:space-between; gap:10px; font-size:14px; }
+  .filters input[type=range] { flex:1; accent-color: var(--hot); }
+  .filters input[type=number] { width: 100px; }
+  .shade { display:none; }
+  main { flex: 1; min-width: 0; padding: 14px; }
+  .bar { display:flex; flex-wrap:wrap; align-items:center; gap:8px 12px; margin: 0 2px 12px; }
+  .crumb { font-size: 15px; font-weight: 600; margin-right:auto; }
+  .crumb .count { font-weight: 400; color: var(--muted); font-size: 13px; }
+  .seg { display:flex; align-items:center; gap:6px; font-size:13px; color: var(--muted); }
   .seg button { font: inherit; font-size: 13px; padding: 6px 11px; border-radius: 999px; border: 1px solid var(--line);
                 background: var(--card); color: var(--ink); cursor: pointer; }
   .seg button[aria-pressed=true] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
   .note { color: var(--muted); font-size: 12px; margin: -4px 2px 10px; }
-  summary { cursor:pointer; color: var(--muted); font-size: 13px; }
-  .filters { display:grid; gap:10px; padding:10px 0 2px; }
-  .filters label { display:flex; align-items:center; justify-content:space-between; gap:10px; font-size:14px; }
-  .filters input[type=range] { flex:1; accent-color: var(--hot); }
-  .filters input[type=number] { width: 100px; }
-  main { padding: 14px; max-width: 1200px; margin: 0 auto; }
-  .count { color: var(--muted); font-size: 13px; margin: 0 2px 10px; }
+  /* komputer: menu stale po lewej */
+  @media (min-width: 900px) {
+    .burger, .q-mob, .side-meta { display:none; }
+    nav#side { position: sticky; top: 61px; max-height: calc(100vh - 61px); overflow-y: auto; border-right: 1px solid var(--line); }
+    main { padding: 16px 22px; }
+  }
+  @media (max-width: 899px) {
+    .meta { display:none; }
+    nav#side { position: fixed; z-index: 40; top: 0; left: 0; bottom: 0; width: 84vw; max-width: 320px; overflow-y: auto;
+               transform: translateX(-100%); transition: transform .25s; border-right: 1px solid var(--line); }
+    body.menu nav#side { transform: none; }
+    body.menu .shade { display:block; position: fixed; inset: 0; z-index: 30; background: rgba(0,0,0,.4); }
+    body.menu { overflow: hidden; }
+    .side-head { display:flex !important; }
+  }
+  .side-head { display:none; align-items:center; justify-content:space-between; margin: 0 4px 10px; }
+  .side-head b { font-size: 17px; }
+  .side-head button { border:0; background:transparent; color:inherit; font-size:22px; cursor:pointer; }
+  .side-meta { color: var(--muted); font-size: 12px; margin: 0 8px 4px; }
   .grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
   .card { background: var(--card); border-radius: var(--r); overflow: hidden; border: 1px solid var(--line); display:flex; flex-direction:column; position:relative; }
   .card a.img { display:block; aspect-ratio: 3/4; background: var(--line); position:relative; }
@@ -72,7 +102,6 @@
   @media (prefers-color-scheme: dark) { .t-code { background: #27214d; color: #b9adff; } }
   .t-best { background: #ffe9cc; color: #a34700; }
   @media (prefers-color-scheme: dark) { .t-best { background: #3d2610; color: #ffb366; } }
-  .chip-best[aria-pressed=false] { border-color: #f0a050; }
   .empty { text-align:center; color: var(--muted); padding: 60px 20px; }
   .more { display:block; margin: 18px auto; padding: 11px 22px; border-radius: 999px; border:1px solid var(--line); background: var(--card); color: inherit; font: inherit; cursor:pointer; }
 </style>
@@ -80,28 +109,23 @@
 <body>
 <header>
   <div class="top">
+    <button class="burger" id="burger" aria-label="Menu">☰</button>
     <h1>Shops <span>Promo</span></h1>
+    <input type="search" id="q" class="q-desk" placeholder="Szukaj…" autocomplete="off">
     <div class="meta" id="meta"></div>
   </div>
-  <div class="row">
-    <input type="search" id="q" placeholder="Szukaj…" autocomplete="off">
-    <select id="sort" aria-label="Sortowanie">
-      <option value="discount">Największy rabat</option>
-      <option value="new">Najnowsze</option>
-      <option value="price">Najtańsze</option>
-      <option value="saving">Największa oszczędność</option>
-    </select>
-  </div>
-  <div class="seg" id="base" role="group" aria-label="Od jakiej ceny liczyć rabat">
-    <span>Rabat od:</span>
-    <button data-b="regular" aria-pressed="true">ceny wyjściowej</button>
-    <button data-b="low30" aria-pressed="false">najniższej z 30 dni</button>
-  </div>
-  <div class="chips" id="shops"></div>
-  <div class="chips" id="cats"></div>
-  <div class="chips" id="kind" hidden></div>
-  <details>
-    <summary>Więcej filtrów</summary>
+  <div class="q-mob" id="qMobBox"></div>
+</header>
+<div class="shade" id="shade"></div>
+<div class="layout">
+  <nav id="side" aria-label="Menu">
+    <div class="side-head"><b>Menu</b><button id="closeMenu" aria-label="Zamknij">✕</button></div>
+    <div class="side-meta" id="sideMeta"></div>
+    <div class="sec">Kategoria</div>
+    <div id="cats"></div>
+    <div class="sec">Sklep</div>
+    <div id="shops"></div>
+    <div class="sec">Filtry</div>
     <div class="filters">
       <label>Rabat min. <input type="range" id="minOff" min="10" max="80" step="5" value="10"> <b id="minOffV">10%</b></label>
       <label>Cena maks. (zł) <input type="number" id="maxPrice" min="0" step="5" placeholder="bez limitu"></label>
@@ -110,14 +134,27 @@
       <label>Ukryj podejrzane rabaty <input type="checkbox" id="hideSus"></label>
       <label>Tylko ulubione <input type="checkbox" id="onlyFav"></label>
     </div>
-  </details>
-</header>
-<main>
-  <div class="count" id="count"></div>
-  <div class="note" id="note"></div>
-  <div class="grid" id="grid"></div>
-  <button class="more" id="more" hidden>Pokaż więcej</button>
-</main>
+  </nav>
+  <main>
+    <div class="bar">
+      <div class="crumb"><span id="crumb">Wszystko</span> <span class="count" id="count"></span></div>
+      <div class="seg" id="base" role="group" aria-label="Od jakiej ceny liczyć rabat">
+        <span>Rabat od:</span>
+        <button data-b="regular" aria-pressed="true">ceny wyjściowej</button>
+        <button data-b="low30" aria-pressed="false">najniższej z 30 dni</button>
+      </div>
+      <select id="sort" aria-label="Sortowanie">
+        <option value="discount">Największy rabat</option>
+        <option value="new">Najnowsze</option>
+        <option value="price">Najtańsze</option>
+        <option value="saving">Największa oszczędność</option>
+      </select>
+    </div>
+    <div class="note" id="note"></div>
+    <div class="grid" id="grid"></div>
+    <button class="more" id="more" hidden>Pokaż więcej</button>
+  </main>
+</div>
 <script>
 const DATA = /*__DATA__*/null;
 const $ = id => document.getElementById(id);
@@ -126,7 +163,7 @@ const store = {
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
 };
 let favs = new Set(store.get('favs', []));
-let cat = 'Wszystko', shop = 'Wszystkie', limit = 60, kind = '';
+let cat = 'Wszystko', shop = 'Wszystkie', limit = 60, kind = '', allShops = false, sc = {};
 const zl = n => n.toFixed(2).replace('.', ',') + ' zł';
 const realOff = d => d.real_discount30 != null ? d.real_discount30 : d.discount;
 let base = 'regular';
@@ -148,13 +185,21 @@ function init() {
   if (!DATA) { $('grid').innerHTML = '<div class="empty">Brak danych — robot jeszcze nie zrobił pierwszego skanu.</div>'; return; }
   const shopNames = [...new Set(DATA.deals.map(d => d.shop))];
   const n = shopNames.length, w = n === 1 ? 'sklep' : (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14)) ? 'sklepy' : 'sklepów';
-  $('meta').innerHTML = `${n} ${w} · ${DATA.deals.length} okazji<br>aktualizacja ${ago(DATA.updated)}`;
-  const sc = {}; DATA.deals.forEach(d => sc[d.shop] = (sc[d.shop] || 0) + 1);
+  const metaTxt = `${n} ${w} · ${DATA.deals.length} okazji · aktualizacja ${ago(DATA.updated)}`;
+  $('meta').textContent = metaTxt; $('sideMeta').textContent = metaTxt;
+  DATA.deals.forEach(d => sc[d.shop] = (sc[d.shop] || 0) + 1);
   shop = store.get('shop', 'Wszystkie'); if (shop !== 'Wszystkie' && !sc[shop]) shop = 'Wszystkie';
-  $('shops').innerHTML = ['Wszystkie', ...Object.keys(sc).sort((a, b) => sc[b] - sc[a])].map(c =>
-    `<button class="chip" data-s="${esc(c)}" aria-pressed="${c === shop}">${esc(c)}${c === 'Wszystkie' ? '' : ' · ' + sc[c]}</button>`).join('');
-  $('shops').onclick = e => { const b = e.target.closest('.chip'); if (!b) return; shop = b.dataset.s; store.set('shop', shop);
-    $('shops').querySelectorAll('.chip').forEach(x => x.setAttribute('aria-pressed', x === b)); cat = 'Wszystko'; drawCats(); reset(); };
+  drawShops();
+  $('shops').onclick = e => { const b = e.target.closest('.it'); if (!b) return;
+    if (b.dataset.more) { allShops = !allShops; drawShops(); return; }
+    shop = b.dataset.s; store.set('shop', shop); drawShops(); drawCats(); closeMenu(); reset(); };
+  // menu na telefonie
+  $('burger').onclick = () => document.body.classList.add('menu');
+  $('shade').onclick = $('closeMenu').onclick = closeMenu;
+  // wyszukiwarka: w nagłówku na komputerze, pod nagłówkiem na telefonie
+  const mq = matchMedia('(min-width: 900px)');
+  const placeQ = () => mq.matches ? $('meta').before($('q')) : $('qMobBox').append($('q'));
+  placeQ(); mq.addEventListener ? mq.addEventListener('change', placeQ) : mq.addListener(placeQ);
   const order = ['XXS','XS','S','M','L','XL','XXL','XXXL'];
   const allSizes = [...new Set(DATA.deals.flatMap(d => d.sizes || []))].filter(x => x !== 'Jeden rozmiar');
   allSizes.sort((a, b) => { const ia = order.indexOf(a), ib = order.indexOf(b);
@@ -162,9 +207,10 @@ function init() {
     return (parseFloat(a) || 999) - (parseFloat(b) || 999) || a.localeCompare(b); });
   $('size').insertAdjacentHTML('beforeend', allSizes.map(x => `<option>${esc(x)}</option>`).join(''));
   drawCats();
-  $('cats').onclick = e => { const b = e.target.closest('.chip'); if (!b) return; cat = b.dataset.c;
-    $('cats').querySelectorAll('.chip').forEach(x => x.setAttribute('aria-pressed', x === b)); drawKind(); reset(); };
-  $('kind').onclick = e => { const b = e.target.closest('.chip'); if (!b) return; kind = b.dataset.k; drawKind(); reset(); };
+  $('cats').onclick = e => { const b = e.target.closest('.it'); if (!b) return;
+    if (b.dataset.k != null) { kind = b.dataset.k; closeMenu(); }
+    else { const c = b.dataset.c; if (c !== cat) kind = ''; cat = c; if (!SEX.includes(c)) closeMenu(); }
+    drawCats(); reset(); };
   const saved = store.get('filters', {});
   base = store.get('base', saved.sort === 'real' ? 'low30' : 'regular');
   if (saved.sort === 'real') saved.sort = 'discount';
@@ -190,31 +236,47 @@ const inCat = d => cat === 'Wszystko' || (cat === '__best' ? d.best
   : SEX.includes(cat) ? inC(d, cat) && isKind(d)
   : inC(d, cat));
 
-// górny rząd: Wszystko · Kobieta · Mężczyzna · pozostałe działy (np. Dom) · Bestsellery
+function closeMenu() { document.body.classList.remove('menu'); }
+
+// sklepy alfabetycznie; na długiej liście pokazujemy 10 pierwszych + „Pokaż wszystkie”
+function drawShops() {
+  const names = Object.keys(sc).sort((a, b) => a.localeCompare(b, 'pl'));
+  const short = !allShops && names.length > 12 && names.indexOf(shop) < 10;
+  const shown = short ? names.slice(0, 10) : names;
+  $('shops').innerHTML = ['Wszystkie', ...shown].map(c =>
+    `<button class="it" data-s="${esc(c)}" aria-pressed="${c === shop}">${esc(c)}<span class="n">${c === 'Wszystkie' ? names.length : sc[c]}</span></button>`).join('')
+    + (names.length > 12 ? `<button class="it toggle" data-more="1">${short ? `Pokaż wszystkie (${names.length})` : 'Zwiń listę'}</button>` : '');
+}
+
+// drzewko: Wszystko · Kobieta (Odzież, Buty) · Mężczyzna (Odzież, Buty) · Dom · Bestsellery
 function drawCats() {
   const mine = DATA.deals.filter(d => shop === 'Wszystkie' || d.shop === shop);
   const cnt = {};
   mine.forEach(d => [d.category, ...(d.also || [])].forEach(c => cnt[c] = (cnt[c] || 0) + 1));
-  const icon = { 'Kobieta': '👩 ', 'Mężczyzna': '👨 ', 'Dom': '🏠 ' };
+  const icon = { 'Kobieta': '👩', 'Mężczyzna': '👨', 'Dom': '🏠' };
   const rest = Object.keys(cnt).filter(c => !SEX.includes(c)).sort((x, y) => cnt[y] - cnt[x]);
-  const opts = [['Wszystko', 0], ...['Kobieta', 'Mężczyzna', ...rest].map(c => [c, cnt[c] || 0]),
+  const opts = [['Wszystko', mine.length], ...['Kobieta', 'Mężczyzna', ...rest].map(c => [c, cnt[c] || 0]),
     ['__best', mine.filter(d => d.best).length]];
-  if (!opts.some(o => o[0] === cat && (o[1] || o[0] === 'Wszystko'))) cat = 'Wszystko';
-  $('cats').innerHTML = opts.filter(o => o[1] || o[0] === 'Wszystko').map(([v, n]) =>
-    `<button class="chip${v === '__best' ? ' chip-best' : ''}" data-c="${esc(v)}" aria-pressed="${v === cat}">`
-    + `${v === '__best' ? '🔥 Bestsellery' : (icon[v] || '') + esc(v)}${n ? ' · ' + n : ''}</button>`).join('');
-  drawKind();
+  if (!opts.some(o => o[0] === cat && (o[1] || o[0] === 'Wszystko'))) { cat = 'Wszystko'; kind = ''; }
+  $('cats').innerHTML = opts.filter(o => o[1] || o[0] === 'Wszystko').map(([v, n]) => {
+    const sex = SEX.includes(v), open = sex && v === cat;
+    let h = `<button class="it${sex ? ' parent' : ''}" data-c="${esc(v)}" aria-pressed="${v === cat && (!sex || !kind)}"${sex ? ` aria-expanded="${open}"` : ''}>`
+      + `${sex ? (open ? '▾ ' : '▸ ') : ''}${v === '__best' ? '🔥 Bestsellery' : (icon[v] ? icon[v] + ' ' : '') + esc(v)}<span class="n">${n}</span></button>`;
+    if (open) {
+      const list = mine.filter(d => inC(d, v));
+      h += [['clothes', '👕 Odzież', list.filter(d => !d.shoes).length], ['shoes', '👟 Buty', list.filter(d => d.shoes).length]]
+        .filter(o => o[2]).map(([k, t, m]) => `<button class="it sub" data-k="${k}" aria-pressed="${kind === k}">${t}<span class="n">${m}</span></button>`).join('');
+    }
+    return h;
+  }).join('');
 }
 
-// drugi rząd pod Kobietą i Mężczyzną: wszystko / odzież / buty
-function drawKind() {
-  const box = $('kind');
-  box.hidden = !SEX.includes(cat);
-  if (box.hidden) return;
-  const list = DATA.deals.filter(d => (shop === 'Wszystkie' || d.shop === shop) && inC(d, cat));
-  const opts = [['', 'Wszystko', list.length], ['clothes', '👕 Odzież', list.filter(d => !d.shoes).length],
-    ['shoes', '👟 Buty', list.filter(d => d.shoes).length]];
-  box.innerHTML = opts.map(([v, t, n]) => `<button class="chip" data-k="${v}" aria-pressed="${v === kind}">${t} · ${n}</button>`).join('');
+const catName = () => cat === '__best' ? 'Bestsellery' : cat === 'Wszystko' ? 'Wszystkie okazje' : cat;
+function crumb() {
+  const parts = [catName()];
+  if (SEX.includes(cat) && kind) parts.push(kind === 'shoes' ? 'Buty' : 'Odzież');
+  if (shop !== 'Wszystkie') parts.push(shop);
+  $('crumb').textContent = parts.join(' › ');
 }
 
 function reset() {
@@ -239,7 +301,8 @@ function render() {
     saving: (a, b) => (b.regular - b.current) - (a.regular - a.current),
     new: (a, b) => b.sale_since.localeCompare(a.sale_since) };
   list.sort(by[s]);
-  $('count').textContent = list.length ? `${list.length} produktów` : '';
+  crumb();
+  $('count').textContent = `· ${list.length} produktów`;
   const no30 = base === 'low30' ? list.filter(d => !has30(d)).length : 0;
   $('note').textContent = no30 ? `* ${no30} produktów ze sklepów, które nie podają najniższej ceny z 30 dni – dla nich rabat liczony od ceny wyjściowej.` : '';
   $('grid').innerHTML = list.length ? list.slice(0, limit).map(card).join('')
