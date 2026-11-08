@@ -54,7 +54,63 @@ class Fetch:
         self.delay = delay
         self.sessions = {}
 
+    # ---- prawdziwa przeglądarka (tylko skan z komputera: python scraper.py --local)
+    # CCC i Adidas sprawdzają, czy zapytanie wychodzi z przeglądarki, która uruchamia ich skrypty –
+    # dlatego otwieramy sklep w Edge (jest w każdym Windowsie) i pobieramy dane z wnętrza otwartej strony
+    real_browser = False
+
+    def _real_page(self, warmup):
+        if not hasattr(self, "_pw"):
+            import os
+            from playwright.sync_api import sync_playwright
+            self._pw, self._pages = sync_playwright().start(), {}
+            opts = dict(headless=bool(os.environ.get("SHOPS_HEADLESS")), args=["--start-minimized"])
+            if os.environ.get("SHOPS_BROWSER_PATH"):
+                self._br = self._pw.chromium.launch(executable_path=os.environ["SHOPS_BROWSER_PATH"], **opts)
+            else:
+                try:
+                    self._br = self._pw.chromium.launch(channel="msedge", **opts)
+                except Exception:
+                    self._br = self._pw.chromium.launch(channel="chrome", **opts)
+            self._ctx = self._br.new_context(locale="pl-PL")
+        host = urllib.parse.urlparse(warmup).netloc
+        if host not in self._pages:
+            pg = self._ctx.new_page()
+            pg.goto(warmup, wait_until="domcontentloaded", timeout=90000)
+            pg.wait_for_timeout(5000)          # czas na skrypty ochronne sklepu
+            self._pages[host] = pg
+        return self._pages[host]
+
+    def real_get(self, url, warmup=None, headers=None, tries=2):
+        last = None
+        for i in range(tries):
+            try:
+                pg = self._real_page(warmup or url)
+                st, body, final = pg.evaluate("""async ([u, h]) => {
+                    const r = await fetch(u, {headers: h, credentials: 'include'});
+                    return [r.status, await r.text(), r.url]; }""", [url, headers or {}])
+                if st == 200:
+                    time.sleep(self.delay)
+                    return body, final
+                last = f"HTTP {st}"
+                if st == 404:
+                    break
+            except Exception as e:
+                last = str(e).splitlines()[0]
+            time.sleep(5 * (i + 1))
+        raise RuntimeError(last)
+
+    def close(self):
+        if hasattr(self, "_pw"):
+            try:
+                self._br.close()
+                self._pw.stop()
+            except Exception:
+                pass
+
     def browser_get(self, url, warmup=None, tries=2, headers=None):
+        if self.real_browser:
+            return self.real_get(url, warmup=warmup, headers=headers)
         """Połączenie „jak przeglądarka Chrome” (biblioteka curl_cffi) – dla sklepów z ochroną przed botami.
         Bez curl_cffi używa zwykłego pobierania."""
         try:
@@ -698,7 +754,7 @@ def scan_eobuwie(f, shop, dept):
             seen.add(m.group(1))
             new += 1
             g = lambda rx: (re.search(rx, t, re.S) or [None, None])[1]
-            current = num(g(r"Aktualna cena\s*</span>.*?<span>\s*([\d\s.,]+)\s*</span>"))
+            current = num(g(r"Aktualna cena\s*</span>.*?<span[^>]*>\s*([\d\s.,]+)\s*</span>"))
             title, desc = g(r'class="title"[^>]*>([^<]+)<') or "", g(r'class="description"[^>]*>([^<]+)<') or ""
             yield {
                 "url": shop["site"] + m.group(1),
@@ -1033,11 +1089,12 @@ SHOP_SCANNERS = {"zara": scan_zara, "itx": scan_itx}
 
 def scan_shop(f, shop):
     """Skanuje jeden sklep; zwraca (produkty, liczba)."""
-    products, skipped = {}, 0
+    products, skipped, broken = {}, 0, 0
 
     def add(p, label, best=False):
-        nonlocal skipped
+        nonlocal skipped, broken
         if not p["url"] or not p["name"] or not p["current"] or not p["regular"]:
+            broken += 1
             return
         if p.pop("available", True) is False:      # wyprzedany – nie da się kupić
             skipped += 1
@@ -1074,12 +1131,16 @@ def scan_shop(f, shop):
         except Exception as e:
             log(f"    POMIJAM ({e})")
     log(f"  {shop['name']}: {len(products)} przecenionych produktów (pominięto niedostępnych: {skipped})")
+    if broken:
+        # np. sklep zmienił wygląd kart i robot nie widzi cen – zgłoś, zamiast cicho zwracać 0
+        log(f"  UWAGA: {broken} produktów bez ceny lub nazwy – możliwe, że sklep zmienił wygląd strony")
     return products
 
 
 def scan(cfg):
     from concurrent.futures import ThreadPoolExecutor
     f = Fetch(cfg["delay_seconds"])
+    f.real_browser = cfg.get("_local", False)
     # sklepy z "local": true w config.json skanuje się tylko z domowego komputera (python scraper.py --local),
     # bo blokują serwery GitHuba; zwykły skan je pomija i zostawia ich ostatnie wyniki
     shops = [s for s in cfg["shops"] if s.get("enabled", True) and bool(s.get("local")) == cfg.get("_local", False)]
@@ -1097,10 +1158,13 @@ def scan(cfg):
             threading.current_thread().name = shop["name"]
             out[shop["name"]] = scan_shop(f, shop)
         return out
-    with ThreadPoolExecutor(max_workers=cfg.get("parallel_shops", 6)) as pool:
+    # przeglądarka działa tylko w jednym wątku – skan z komputera idzie sklep po sklepie
+    workers = 1 if f.real_browser else cfg.get("parallel_shops", 6)
+    with ThreadPoolExecutor(max_workers=workers) as pool:
         results = {}
         for r in pool.map(run, groups.values()):
             results.update(r)
+    f.close()
     products, per_shop = {}, {}
     for shop in shops:
         res = results.get(shop["name"], {})
