@@ -99,6 +99,7 @@
   </div>
   <div class="chips" id="shops"></div>
   <div class="chips" id="cats"></div>
+  <div class="chips" id="kind" hidden></div>
   <details>
     <summary>Więcej filtrów</summary>
     <div class="filters">
@@ -125,7 +126,7 @@ const store = {
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
 };
 let favs = new Set(store.get('favs', []));
-let cat = 'Wszystko', shop = 'Wszystkie', limit = 60;
+let cat = 'Wszystko', shop = 'Wszystkie', limit = 60, kind = '';
 const zl = n => n.toFixed(2).replace('.', ',') + ' zł';
 const realOff = d => d.real_discount30 != null ? d.real_discount30 : d.discount;
 let base = 'regular';
@@ -162,7 +163,8 @@ function init() {
   $('size').insertAdjacentHTML('beforeend', allSizes.map(x => `<option>${esc(x)}</option>`).join(''));
   drawCats();
   $('cats').onclick = e => { const b = e.target.closest('.chip'); if (!b) return; cat = b.dataset.c;
-    $('cats').querySelectorAll('.chip').forEach(x => x.setAttribute('aria-pressed', x === b)); reset(); };
+    $('cats').querySelectorAll('.chip').forEach(x => x.setAttribute('aria-pressed', x === b)); drawKind(); reset(); };
+  $('kind').onclick = e => { const b = e.target.closest('.chip'); if (!b) return; kind = b.dataset.k; drawKind(); reset(); };
   const saved = store.get('filters', {});
   base = store.get('base', saved.sort === 'real' ? 'low30' : 'regular');
   if (saved.sort === 'real') saved.sort = 'discount';
@@ -181,16 +183,37 @@ function init() {
   render();
 }
 
+const SEX = ['Kobieta', 'Mężczyzna'];
+const isKind = d => !kind || (kind === 'shoes') === !!d.shoes;
+const inCat = d => cat === 'Wszystko' || (cat === '__best' ? d.best
+  : SEX.includes(cat) ? d.category === cat && isKind(d)
+  : d.category === cat);
+
+// górny rząd: Wszystko · Kobieta · Mężczyzna · pozostałe działy (np. Dom) · Bestsellery
 function drawCats() {
-  const counts = {};
-  DATA.deals.forEach(d => { if (shop === 'Wszystkie' || d.shop === shop) counts[d.category] = (counts[d.category] || 0) + 1; });
-  const cats = ['Wszystko', ...Object.keys(counts).sort((a, b) => counts[b] - counts[a])];
-  const inShop = d => shop === 'Wszystkie' || d.shop === shop;
-  const nBest = DATA.deals.filter(d => d.best && inShop(d)).length;
-  const nShoes = DATA.deals.filter(d => d.shoes && inShop(d)).length;
-  $('cats').innerHTML = cats.map((c, i) => `<button class="chip" data-c="${esc(c)}" aria-pressed="${c === cat}">${esc(c)}${c === 'Wszystko' ? '' : ' · ' + counts[c]}</button>`
-    + (i === 0 && nBest ? `<button class="chip chip-best" data-c="__best" aria-pressed="${cat === '__best'}">🔥 Bestsellery · ${nBest}</button>` : '')
-    + (i === 0 && nShoes ? `<button class="chip" data-c="__shoes" aria-pressed="${cat === '__shoes'}">👟 Buty · ${nShoes}</button>` : '')).join('');
+  const mine = DATA.deals.filter(d => shop === 'Wszystkie' || d.shop === shop);
+  const cnt = {};
+  mine.forEach(d => cnt[d.category] = (cnt[d.category] || 0) + 1);
+  const icon = { 'Kobieta': '👩 ', 'Mężczyzna': '👨 ', 'Dom': '🏠 ' };
+  const rest = Object.keys(cnt).filter(c => !SEX.includes(c)).sort((x, y) => cnt[y] - cnt[x]);
+  const opts = [['Wszystko', 0], ...['Kobieta', 'Mężczyzna', ...rest].map(c => [c, cnt[c] || 0]),
+    ['__best', mine.filter(d => d.best).length]];
+  if (!opts.some(o => o[0] === cat && (o[1] || o[0] === 'Wszystko'))) cat = 'Wszystko';
+  $('cats').innerHTML = opts.filter(o => o[1] || o[0] === 'Wszystko').map(([v, n]) =>
+    `<button class="chip${v === '__best' ? ' chip-best' : ''}" data-c="${esc(v)}" aria-pressed="${v === cat}">`
+    + `${v === '__best' ? '🔥 Bestsellery' : (icon[v] || '') + esc(v)}${n ? ' · ' + n : ''}</button>`).join('');
+  drawKind();
+}
+
+// drugi rząd pod Kobietą i Mężczyzną: wszystko / odzież / buty
+function drawKind() {
+  const box = $('kind');
+  box.hidden = !SEX.includes(cat);
+  if (box.hidden) return;
+  const list = DATA.deals.filter(d => (shop === 'Wszystkie' || d.shop === shop) && d.category === cat);
+  const opts = [['', 'Wszystko', list.length], ['clothes', '👕 Odzież', list.filter(d => !d.shoes).length],
+    ['shoes', '👟 Buty', list.filter(d => d.shoes).length]];
+  box.innerHTML = opts.map(([v, t, n]) => `<button class="chip" data-k="${v}" aria-pressed="${v === kind}">${t} · ${n}</button>`).join('');
 }
 
 function reset() {
@@ -205,7 +228,7 @@ function render() {
   $('minOffV').textContent = minOff + '%';
   let list = DATA.deals.filter(d =>
     (shop === 'Wszystkie' || d.shop === shop) &&
-    (cat === 'Wszystko' || (cat === '__best' ? d.best : cat === '__shoes' ? d.shoes : d.category === cat)) && off(d) >= minOff &&
+    inCat(d) && off(d) >= minOff &&
     (!maxP || d.current <= maxP) && (!q || d.name.toLowerCase().includes(q)) &&
     (!size || !d.sizes || !d.sizes.length || d.sizes.includes(size) || d.sizes.includes('Jeden rozmiar')) &&
     (!$('onlyNew').checked || isNew(d)) && (!$('hideSus').checked || !isSus(d)) &&
