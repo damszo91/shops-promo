@@ -438,6 +438,19 @@
           "path": "/pl/w/mezczyzni-wyprzedaz-odziez-3yaepznik1z6ymx6"
         }
       ]
+    },
+    {
+      "name": "New Balance",
+      "type": "newbalance",
+      "group": "New Balance",
+      "site": "https://newbalance.pl",
+      "departments": [
+        {
+          "label": "Promocja",
+          "type": "from_flag",
+          "id": "1"
+        }
+      ]
     }
   ],
   "skip_departments": [

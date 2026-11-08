@@ -155,6 +155,23 @@ class Fetch:
             return self.get(url, referer=warmup, headers=headers, tries=1)
         raise RuntimeError(last)
 
+    def post_json(self, url, payload, tries=3):
+        last = None
+        for i in range(tries):
+            try:
+                req = urllib.request.Request(url, data=json.dumps(payload).encode(), method="POST", headers={
+                    "User-Agent": UA, "Content-Type": "application/json", "Accept": "application/json",
+                    "Accept-Language": "pl-PL,pl;q=0.9"})
+                with urllib.request.urlopen(req, timeout=45) as r:
+                    body = json.loads(r.read().decode("utf-8", "replace"))
+                time.sleep(self.delay)
+                return body
+            except Exception as e:
+                last = str(e)
+            log(f"    błąd ({last}), ponawiam…")
+            time.sleep(4 * (i + 1))
+        raise RuntimeError(last)
+
     def get(self, url, referer=None, as_json=False, tries=3, headers=None):
         extra, headers = headers, {
             "User-Agent": UA,
@@ -1056,6 +1073,55 @@ def scan_nike(f, shop, dept):
     log(f"    {len(cards)} produktów")
 
 
+NB_QUERY = """query products($objectType: ListingType!, $objectId: ID!, $page: Int!, $limit: Int) {
+  products(id: $objectId, type: $objectType, limit: $limit, page: $page) {
+    items { id name niceUrl pictures categoryPath { name } flags { symbol name }
+      variants { availability { buyable } options { name value }
+        prices { sellPrice { gross } basePrice { gross } omnibusPrice { gross } } } }
+    pagination { currentPage lastPage itemsCount }
+  }
+}"""
+NB_SEX = {"Damskie": ["Kobieta"], "Męskie": ["Mężczyzna"]}
+
+
+def scan_newbalance(f, shop, dept):
+    # newbalance.pl: dział „Promocja” (flaga 1) z ich API – ceny, cena z 30 dni, dostępne rozmiary w jednym zapytaniu
+    page, last = 1, 1
+    while page <= last and page <= 60:
+        data = f.post_json(shop["site"] + "/api/graphql/frontend/products", {
+            "operationName": "products", "query": NB_QUERY,
+            "variables": {"objectType": dept.get("type", "from_flag"), "objectId": str(dept.get("id", "1")),
+                          "page": page, "limit": 96}})
+        prods = ((data.get("data") or {}).get("products")) or {}
+        items = prods.get("items") or []
+        last = int((prods.get("pagination") or {}).get("lastPage") or page)
+        for it in items:
+            path = [c.get("name", "") for c in it.get("categoryPath") or []]
+            if path and path[0] == "Dziecięce":
+                continue
+            vs = it.get("variants") or []
+            ok = [v for v in vs if (v.get("availability") or {}).get("buyable")]
+            v = (ok or vs or [{}])[0]
+            pr = v.get("prices") or {}
+            g = lambda k: num((pr.get(k) or {}).get("gross"))
+            pics = it.get("pictures") or []
+            yield {
+                "url": f"{shop['site']}/{it.get('niceUrl', '')}",
+                "name": it.get("name"),
+                "image": pics[0].replace("{imageSafeUri}", shop["site"] + "/picture/fit-in/500x500/smart/filters:fill(white):quality(75)") if pics else None,
+                "current": g("sellPrice"), "regular": g("basePrice") or g("sellPrice"), "lowest30": g("omnibusPrice"),
+                "sizes": [o.get("value") for x in ok for o in x.get("options") or [] if o.get("name") == "Rozmiar"],
+                "available": bool(ok),
+                "best": is_best(" ".join(fl.get("name", "") for fl in it.get("flags") or [])),
+                "labels": NB_SEX.get(path[0] if path else "", ["Kobieta", "Mężczyzna"]),
+                "cat": " ".join(path),
+            }
+        log(f"    strona {page}/{last}: {len(items)} produktów")
+        if not items:
+            return
+        page += 1
+
+
 SHOPIFY_KIDS = {"kids", "junior", "boys", "girls", "infant", "toddler", "baby"}
 
 
@@ -1091,7 +1157,8 @@ SCANNERS = {"lpp": scan_lpp, "answear": scan_answear, "hm": scan_hm,
             "esotiq": scan_esotiq, "calz": scan_calz, "sfra": scan_sfra,
             "ccc": scan_ccc, "eobuwie": scan_eobuwie, "sizeer": scan_sizeer, "50style": scan_50style,
             "deichmann": scan_deichmann, "zalando": scan_zalando, "puma": scan_puma, "shopify": scan_shopify,
-            "adidas": scan_adidas, "nike": scan_nike}
+            "adidas": scan_adidas, "nike": scan_nike,
+            "newbalance": scan_newbalance}
 # sklepy, w których robot sam znajduje działy promocji
 SHOP_SCANNERS = {"zara": scan_zara, "itx": scan_itx}
 
@@ -1109,6 +1176,8 @@ def scan_shop(f, shop):
             skipped += 1
             return
         p["best"] = bool(p.get("best") or best)
+        labels = p.pop("labels", None) or [label]   # skaner może sam przypisać dział (np. New Balance)
+        label = labels[0]
         cat = p.pop("cat", "")
         if KIDS_RE.search(f"{p['name']} {cat}"):   # produkty dziecięce z działów mieszanych (działy dziecięce są wyłączone)
             return
@@ -1121,6 +1190,8 @@ def scan_shop(f, shop):
             if label != old["category"] and label not in old.setdefault("also", []):
                 old["also"].append(label)
             return
+        if labels[1:]:
+            p["also"] = labels[1:]
         p.update(shop=shop["name"], category=label,
                  current=round(p["current"], 2), regular=round(p["regular"], 2),
                  sizes=list(dict.fromkeys(str(x) for x in p.get("sizes") or []))[:14])
